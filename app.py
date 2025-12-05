@@ -48,8 +48,6 @@ def create_tables():
     CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
-        year INTEGER NOT NULL,
-        month INTEGER NOT NULL,
         pay_date TEXT NOT NULL,
         amount REAL NOT NULL,
         description TEXT,
@@ -66,25 +64,6 @@ def create_tables():
         capacity INTEGER,
         route TEXT,
         is_active INTEGER NOT NULL DEFAULT 1
-    )
-    """)
-
-    # Eski db'lerde route yoksa ekle
-    try:
-        c.execute("ALTER TABLE vehicles ADD COLUMN route TEXT")
-    except sqlite3.OperationalError:
-        pass
-
-    # ÖĞRENCİ–ARAÇ
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS student_vehicle (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        student_id INTEGER NOT NULL,
-        vehicle_id INTEGER NOT NULL,
-        start_date TEXT NOT NULL,
-        end_date TEXT,
-        FOREIGN KEY(student_id) REFERENCES students(id),
-        FOREIGN KEY(vehicle_id) REFERENCES vehicles(id)
     )
     """)
 
@@ -137,6 +116,20 @@ def create_tables():
             )
         conn.commit()
 
+    # ÖĞRENCİ–ARAÇ
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS student_vehicle (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        vehicle_id INTEGER NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        FOREIGN KEY(student_id) REFERENCES students(id),
+        FOREIGN KEY(vehicle_id) REFERENCES vehicles(id)
+    )
+    """)
+
+    conn.commit()
     conn.close()
 
 
@@ -155,22 +148,19 @@ def ensure_daily_backup():
     if last_backup != today_str:
         os.makedirs("backups", exist_ok=True)
         backup_path = os.path.join("backups", f"servis_takip_{today_str}.db")
-        try:
-            shutil.copy2(DB_NAME, backup_path)
-            if row:
-                c.execute(
-                    "UPDATE meta SET value=? WHERE key='last_backup_date'",
-                    (today_str,),
-                )
-            else:
-                c.execute(
-                    "INSERT INTO meta (key, value) VALUES ('last_backup_date', ?)",
-                    (today_str,),
-                )
-            conn.commit()
-            print("Günlük yedek alındı:", backup_path)
-        except Exception as e:
-            print("Yedekleme hatası:", e)
+        shutil.copyfile(DB_NAME, backup_path)
+
+        if row:
+            c.execute(
+                "UPDATE meta SET value=? WHERE key='last_backup_date'",
+                (today_str,),
+            )
+        else:
+            c.execute(
+                "INSERT INTO meta (key, value) VALUES (?, ?)",
+                ("last_backup_date", today_str),
+            )
+        conn.commit()
 
     conn.close()
 
@@ -221,160 +211,117 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ----------------- ANA SAYFA -----------------
+# --- ANA SAYFA ---
 @app.route("/")
 @login_required
 def index():
-    ensure_daily_backup()  # Her gün ilk girişte yedek al
+    # Her gün ilk girişte yedek al
+    ensure_daily_backup()
 
     conn = get_conn()
     c = conn.cursor()
 
-    active_tab = request.args.get("tab", "students")
-    raw_filter_date = request.args.get("filter_date", "").strip()
-    filter_date = raw_filter_date if raw_filter_date else None
-
-    # GENEL ÖZET
-    c.execute("SELECT COUNT(*) FROM students WHERE is_active=1")
-    student_count = c.fetchone()[0]
-
-    c.execute("SELECT COUNT(*) FROM vehicles WHERE is_active=1")
-    vehicle_count = c.fetchone()[0]
-
-    c.execute("SELECT COALESCE(SUM(amount),0) FROM payments")
-    total_income = c.fetchone()[0] or 0.0
-
-    c.execute("SELECT COALESCE(SUM(amount),0) FROM expenses")
-    total_expense = c.fetchone()[0] or 0.0
-
-    summary = {
-        "student_count": student_count,
-        "vehicle_count": vehicle_count,
-        "total_income": total_income,
-        "total_expense": total_expense,
-        "profit": total_income - total_expense,
-    }
-
-    # ÖĞRENCİLER
+    # Öğrenciler
     c.execute("""
-        SELECT id, name, school, parent_name, phone,
-               monthly_fee, start_year, start_month
+        SELECT id, name, school, parent_name, phone, monthly_fee,
+               start_year, start_month, is_active
         FROM students
-        WHERE is_active=1
-        ORDER BY id
+        ORDER BY name
     """)
-    students = c.fetchall()
+    students_rows = c.fetchall()
 
-    # ÖDEMELER
-    if filter_date:
-        c.execute("""
-            SELECT p.id, s.name, p.pay_date, p.year, p.month,
-                   p.amount, p.description
-            FROM payments p
-            JOIN students s ON s.id = p.student_id
-            WHERE p.pay_date = ?
-            ORDER BY p.id DESC
-        """, (filter_date,))
-    else:
-        c.execute("""
-            SELECT p.id, s.name, p.pay_date, p.year, p.month,
-                   p.amount, p.description
-            FROM payments p
-            JOIN students s ON s.id = p.student_id
-            ORDER BY p.id DESC
-            LIMIT 50
-        """)
-    payments = c.fetchall()
-
-    # Tarih özet
-    date_summary = None
-    if filter_date:
-        c.execute("""
-            SELECT
-                COUNT(DISTINCT student_id) AS student_count,
-                COUNT(*) AS payment_count,
-                COALESCE(SUM(amount), 0) AS total_amount
-            FROM payments
-            WHERE pay_date = ?
-        """, (filter_date,))
-        row = c.fetchone()
-        if row:
-            date_summary = {
-                "student_count": row[0] or 0,
-                "payment_count": row[1] or 0,
-                "total_amount": row[2] or 0.0,
-            }
-
-    # ARAÇLAR
+    # Araçlar
     c.execute("""
-        SELECT id, plate, name, capacity, route
+        SELECT id, plate, name, capacity, route, is_active
         FROM vehicles
-        WHERE is_active=1
-        ORDER BY id
+        ORDER BY plate
     """)
-    vehicles = c.fetchall()
+    vehicles_rows = c.fetchall()
 
-    # GİDERLER
+    # Okullar (distinct + sayım)
     c.execute("""
-        SELECT e.id, e.exp_date, IFNULL(v.plate,'Genel'),
-               e.category, e.amount, e.description
+        SELECT school, COUNT(*) as cnt
+        FROM students
+        WHERE is_active = 1
+        GROUP BY school
+        ORDER BY school
+    """)
+    schools_stats = c.fetchall()
+
+    # Okul-öğrenci detayı
+    c.execute("""
+        SELECT id, name, school, parent_name, phone, monthly_fee, is_active
+        FROM students
+        ORDER BY school, name
+    """)
+    school_students = c.fetchall()
+
+    # Aktif öğrenci listesi (id, name)
+    c.execute("""
+        SELECT id, name
+        FROM students
+        WHERE is_active = 1
+        ORDER BY name
+    """)
+    students_for_select = c.fetchall()
+
+    # Ödemeler (son 50)
+    c.execute("""
+        SELECT p.id, s.name, p.pay_date, p.amount, p.description
+        FROM payments p
+        JOIN students s ON s.id = p.student_id
+        ORDER BY p.pay_date DESC, p.id DESC
+        LIMIT 50
+    """)
+    payments_rows = c.fetchall()
+
+    # Giderler (son 50)
+    c.execute("""
+        SELECT e.id, e.exp_date, e.category, e.amount, e.description,
+               v.plate, v.name
         FROM expenses e
         LEFT JOIN vehicles v ON v.id = e.vehicle_id
         ORDER BY e.exp_date DESC, e.id DESC
         LIMIT 50
     """)
-    expenses = c.fetchall()
-
-    # FORM SEÇENEKLERİ
-    c.execute("SELECT id, name FROM students WHERE is_active=1 ORDER BY name")
-    student_options = c.fetchall()
-
-    c.execute("SELECT id, plate FROM vehicles WHERE is_active=1 ORDER BY plate")
-    vehicle_options = c.fetchall()
-
-    # ARAÇLARA GÖRE ÖĞRENCİLER
-    c.execute("""
-        SELECT v.plate, v.id, s.name, s.school
-        FROM student_vehicle sv
-        JOIN vehicles v ON v.id = sv.vehicle_id
-        JOIN students s ON s.id = sv.student_id
-        WHERE (sv.end_date IS NULL OR sv.end_date = '')
-        ORDER BY v.plate, s.name
-    """)
-    vehicle_student_list = c.fetchall()
-
-    # OKULLARA GÖRE ÖĞRENCİ SAYISI
-    c.execute("""
-        SELECT school, COUNT(*)
-        FROM students
-        WHERE is_active=1
-        GROUP BY school
-        ORDER BY school
-    """)
-    school_stats = c.fetchall()
+    expenses_rows = c.fetchall()
 
     conn.close()
 
-    today = date.today().isoformat()
-    current_year = date.today().year
+    # >>> ÖZET / SUMMARY HESABI <<<
+
+    # payments_rows ve expenses_rows elemanları dict değil TUPLE.
+    # Sorguda amount sütunu 4. eleman değil 3. indeks:
+    # 0:id, 1:öğrenci adı / exp_date, 2:tarih/kategori, 3:amount, 4:description...
+    total_income = sum(p[3] for p in payments_rows)
+    total_expense = sum(e[3] for e in expenses_rows)
+
+    # aktif öğrenci sayısı (is_active = 1)
+    active_student_count = len([s for s in students_rows if s[8] == 1])
+
+    summary = {
+        "student_count": active_student_count,
+        "vehicle_count": len(vehicles_rows),
+        "total_income": total_income,
+        "profit": total_income - total_expense,
+    }
+
+    active_tab = request.args.get("tab", "students")
 
     return render_template(
         "dashboard.html",
-        summary=summary,
-        students=students,
-        payments=payments,
-        vehicles=vehicles,
-        expenses=expenses,
-        student_options=student_options,
-        vehicle_options=vehicle_options,
-        vehicle_student_list=vehicle_student_list,
-        school_stats=school_stats,
-        today=today,
-        current_year=current_year,
-        filter_date=filter_date,
-        date_summary=date_summary,
-        active_tab=active_tab,
+        students=students_rows,
+        vehicles=vehicles_rows,
+        schools_stats=schools_stats,
+        school_students=school_students,
+        students_for_select=students_for_select,
+        payments=payments_rows,
+        expenses=expenses_rows,
+        summary=summary,      # <-- buradan şablona gidiyor
+        active_tab=active_tab
     )
+
+
 
 
 # ----------------- ÖĞRENCİ İŞLEMLERİ -----------------
@@ -385,34 +332,80 @@ def add_student():
     school = request.form.get("school", "").strip()
     parent_name = request.form.get("parent_name", "").strip()
     phone = request.form.get("phone", "").strip()
-    monthly_fee = request.form.get("monthly_fee", "").replace(",", ".")
-    start_year = request.form.get("start_year", "")
-    start_month = request.form.get("start_month", "")
+    monthly_fee = request.form.get("monthly_fee", "").strip()
+    start_year = request.form.get("start_year", "").strip()
+    start_month = request.form.get("start_month", "").strip()
 
     if not name or not monthly_fee:
-        flash("Ad soyad ve aylık ücret zorunludur.", "danger")
+        flash("Öğrenci adı ve aylık ücret zorunludur.", "danger")
         return redirect(url_for("index", tab="students"))
 
     try:
-        fee_val = float(monthly_fee)
-        sy = int(start_year) if start_year else date.today().year
-        sm = int(start_month) if start_month else date.today().month
+        monthly_fee_val = float(monthly_fee.replace(",", "."))
     except ValueError:
-        flash("Ücret, yıl ve ay sayısal olmalıdır.", "danger")
+        flash("Aylık ücret sayısal olmalıdır.", "danger")
         return redirect(url_for("index", tab="students"))
+
+    try:
+        sy = int(start_year) if start_year else None
+        sm = int(start_month) if start_month else None
+    except ValueError:
+        sy, sm = None, None
 
     conn = get_conn()
     c = conn.cursor()
     c.execute("""
-        INSERT INTO students
-        (name, school, parent_name, phone,
-         monthly_fee, start_year, start_month)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (name, school, parent_name, phone, fee_val, sy, sm))
+    INSERT INTO students (name, school, parent_name, phone, monthly_fee, start_year, start_month, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    """, (name, school, parent_name, phone, monthly_fee_val, sy, sm))
     conn.commit()
     conn.close()
 
-    flash("Öğrenci kaydedildi.", "success")
+    flash("Öğrenci eklendi.", "success")
+    return redirect(url_for("index", tab="students"))
+
+
+@app.route("/update_student/<int:student_id>", methods=["POST"])
+@login_required
+def update_student(student_id):
+    name = request.form.get("name", "").strip()
+    school = request.form.get("school", "").strip()
+    parent_name = request.form.get("parent_name", "").strip()
+    phone = request.form.get("phone", "").strip()
+    monthly_fee = request.form.get("monthly_fee", "").strip()
+    start_year = request.form.get("start_year", "").strip()
+    start_month = request.form.get("start_month", "").strip()
+    is_active = request.form.get("is_active", "1")
+
+    if not name or not monthly_fee:
+        flash("Öğrenci adı ve aylık ücret zorunludur.", "danger")
+        return redirect(url_for("index", tab="students"))
+
+    try:
+        monthly_fee_val = float(monthly_fee.replace(",", "."))
+    except ValueError:
+        flash("Aylık ücret sayısal olmalıdır.", "danger")
+        return redirect(url_for("index", tab="students"))
+
+    try:
+        sy = int(start_year) if start_year else None
+        sm = int(start_month) if start_month else None
+    except ValueError:
+        sy, sm = None, None
+
+    is_active_val = 1 if is_active == "1" else 0
+
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("""
+    UPDATE students
+    SET name=?, school=?, parent_name=?, phone=?, monthly_fee=?, start_year=?, start_month=?, is_active=?
+    WHERE id=?
+    """, (name, school, parent_name, phone, monthly_fee_val, sy, sm, is_active_val, student_id))
+    conn.commit()
+    conn.close()
+
+    flash("Öğrenci güncellendi.", "success")
     return redirect(url_for("index", tab="students"))
 
 
@@ -421,20 +414,11 @@ def add_student():
 def delete_student(student_id):
     conn = get_conn()
     c = conn.cursor()
-
     c.execute("UPDATE students SET is_active=0 WHERE id=?", (student_id,))
-
-    today_str = date.today().isoformat()
-    c.execute("""
-        UPDATE student_vehicle
-        SET end_date=?
-        WHERE student_id=? AND (end_date IS NULL OR end_date='')
-    """, (today_str, student_id))
-
     conn.commit()
     conn.close()
 
-    flash("Öğrenci silindi (pasif yapıldı).", "success")
+    flash("Öğrenci pasife alındı.", "info")
     return redirect(url_for("index", tab="students"))
 
 
@@ -443,37 +427,31 @@ def delete_student(student_id):
 @login_required
 def add_payment():
     student_id = request.form.get("student_id")
-    amount = request.form.get("amount", "").replace(",", ".")
-    year = request.form.get("year", "")
-    month = request.form.get("month", "")
-    pay_date = request.form.get("pay_date", "") or date.today().isoformat()
+    amount_str = request.form.get("amount", "").strip()
+    pay_date = request.form.get("pay_date", "").strip()
     description = request.form.get("description", "").strip()
 
-    if not student_id or not amount:
-        flash("Öğrenci ve tutar zorunludur.", "danger")
+    if not student_id or not amount_str or not pay_date:
+        flash("Öğrenci, tutar ve tarih zorunlu alanlardır.", "danger")
         return redirect(url_for("index", tab="payments"))
 
     try:
-        sid = int(student_id)
-        amt = float(amount)
-        yy = int(year) if year else date.today().year
-        mm = int(month) if month else date.today().month
+        amount = float(amount_str.replace(",", "."))
     except ValueError:
-        flash("Tutar, yıl ve ay sayısal olmalıdır.", "danger")
+        flash("Tutar sayısal olmalıdır.", "danger")
         return redirect(url_for("index", tab="payments"))
 
     conn = get_conn()
     c = conn.cursor()
     c.execute("""
-        INSERT INTO payments
-        (student_id, year, month, pay_date, amount, description)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (sid, yy, mm, pay_date, amt, description))
+    INSERT INTO payments (student_id, pay_date, amount, description)
+    VALUES (?, ?, ?, ?)
+    """, (student_id, pay_date, amount, description))
     conn.commit()
     conn.close()
 
-    flash("Ödeme kaydedildi.", "success")
-    return redirect(url_for("index", tab="payments", filter_date=pay_date))
+    flash("Ödeme eklendi.", "success")
+    return redirect(url_for("index", tab="payments"))
 
 
 @app.route("/payments_by_date", methods=["POST"])
@@ -482,13 +460,29 @@ def payments_by_date():
     filter_date = request.form.get("filter_date", "").strip()
 
     if not filter_date:
-        flash("Lütfen bir tarih seçin.", "danger")
+        flash("Lütfen tarih seçiniz.", "danger")
         return redirect(url_for("index", tab="payments"))
 
-    return redirect(url_for("index", tab="payments", filter_date=filter_date))
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("""
+    SELECT p.id, s.name, p.pay_date, p.amount, p.description
+    FROM payments p
+    JOIN students s ON s.id = p.student_id
+    WHERE p.pay_date=?
+    ORDER BY s.name
+    """, (filter_date,))
+    rows = c.fetchall()
+
+    conn.close()
+
+    total_amount = sum(r[3] for r in rows) if rows else 0.0
+
+    flash(f"{filter_date} tarihinde {len(rows)} ödeme var. Toplam: {total_amount:.2f} TL", "info")
+    # Tarih filtresini querystring ile tekrar gönderebiliriz (gerekirse dashboard'ta gösterilebilir)
+    return redirect(url_for("index", tab="payments"))
 
 
-# ----- GÜNLÜK RAPOR (EXCEL/PDF) -----
 @app.route("/daily_report", methods=["POST"])
 @login_required
 def daily_report():
@@ -496,80 +490,86 @@ def daily_report():
     report_format = request.form.get("report_format", "excel")
 
     if not report_date:
-        flash("Rapor için bir tarih seçmelisiniz.", "danger")
+        flash("Rapor tarihi seçiniz.", "danger")
         return redirect(url_for("index", tab="payments"))
 
     conn = get_conn()
     c = conn.cursor()
 
-    # O tarihteki ödemeler
+    # Ödemeler
     c.execute("""
-        SELECT p.id, s.name, p.pay_date, p.amount, p.description
-        FROM payments p
-        JOIN students s ON s.id = p.student_id
-        WHERE p.pay_date = ?
-        ORDER BY p.id
+    SELECT s.name, s.school, p.amount, p.description
+    FROM payments p
+    JOIN students s ON s.id = p.student_id
+    WHERE p.pay_date=?
+    ORDER BY s.name
     """, (report_date,))
-    payments = c.fetchall()
+    pay_rows = c.fetchall()
 
-    # O tarihteki giderler
+    # Giderler
     c.execute("""
-        SELECT e.id, e.exp_date, IFNULL(v.plate,'Genel'), e.category, e.amount, e.description
-        FROM expenses e
-        LEFT JOIN vehicles v ON v.id = e.vehicle_id
-        WHERE e.exp_date = ?
-        ORDER BY e.id
+    SELECT e.exp_date, e.category, e.amount, e.description,
+           v.plate, v.name
+    FROM expenses e
+    LEFT JOIN vehicles v ON v.id = e.vehicle_id
+    WHERE e.exp_date=?
+    ORDER BY e.id
     """, (report_date,))
-    expenses = c.fetchall()
-
-    # Özet
-    c.execute("SELECT COALESCE(SUM(amount),0) FROM payments WHERE pay_date=?", (report_date,))
-    total_income = c.fetchone()[0] or 0.0
-
-    c.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE exp_date=?", (report_date,))
-    total_expense = c.fetchone()[0] or 0.0
+    exp_rows = c.fetchall()
 
     conn.close()
 
+    total_income = sum(r[2] for r in pay_rows) if pay_rows else 0.0
+    total_expense = sum(r[2] for r in exp_rows) if exp_rows else 0.0
+    profit = total_income - total_expense
+
     if report_format == "excel":
-        # CSV (Excel ile açılabilir)
         output = io.StringIO()
         writer = csv.writer(output, delimiter=';')
 
         writer.writerow([f"Günlük Rapor - {report_date}"])
         writer.writerow([])
-        writer.writerow(["Ödemeler"])
-        writer.writerow(["ID", "Öğrenci", "Tarih", "Tutar", "Açıklama"])
-        for p in payments:
-            writer.writerow([p[0], p[1], p[2], f"{p[3]:.2f}", p[4]])
+
+        writer.writerow(["ÖDEMELER"])
+        writer.writerow(["Öğrenci", "Okul", "Tutar (TL)", "Açıklama"])
+        for r in pay_rows:
+            writer.writerow([r[0], r[1] or "", f"{r[2]:.2f}", r[3] or ""])
 
         writer.writerow([])
-        writer.writerow(["Giderler"])
-        writer.writerow(["ID", "Tarih", "Araç", "Kategori", "Tutar", "Açıklama"])
-        for e in expenses:
-            writer.writerow([e[0], e[1], e[2], e[3], f"{e[4]:.2f}", e[5]])
+        writer.writerow(["GİDERLER"])
+        writer.writerow(["Tarih", "Kategori", "Tutar (TL)", "Açıklama", "Araç Plaka", "Araç Adı"])
+        for e in exp_rows:
+            writer.writerow([
+                e[0],
+                e[1] or "",
+                f"{e[2]:.2f}",
+                e[3] or "",
+                e[4] or "",
+                e[5] or "",
+            ])
 
         writer.writerow([])
-        writer.writerow(["Özet"])
+        writer.writerow(["GENEL ÖZET"])
         writer.writerow(["Toplam Gelir", f"{total_income:.2f} TL"])
         writer.writerow(["Toplam Gider", f"{total_expense:.2f} TL"])
-        writer.writerow(["Kâr / Zarar", f"{(total_income-total_expense):.2f} TL"])
+        writer.writerow(["Kâr/Zarar", f"{profit:.2f} TL"])
 
-        csv_bytes = io.BytesIO(output.getvalue().encode("utf-8-sig"))
+        data = io.BytesIO(output.getvalue().encode("utf-8-sig"))
         filename = f"gunluk_rapor_{report_date}.csv"
+
         return send_file(
-            csv_bytes,
+            data,
             as_attachment=True,
             download_name=filename,
             mimetype="text/csv",
         )
+
     else:
-        # PDF
         try:
             from reportlab.pdfgen import canvas
             from reportlab.lib.pagesizes import A4
         except ImportError:
-            flash("PDF için 'reportlab' kütüphanesini kurmalısınız: pip install reportlab", "danger")
+            flash("PDF oluşturmak için 'reportlab' kütüphanesini kurmalısınız.", "danger")
             return redirect(url_for("index", tab="payments"))
 
         buffer = io.BytesIO()
@@ -579,42 +579,44 @@ def daily_report():
         y = height - 40
         cpdf.setFont("Helvetica-Bold", 14)
         cpdf.drawString(40, y, f"Günlük Rapor - {report_date}")
-        y -= 30
+        y -= 25
 
-        cpdf.setFont("Helvetica-Bold", 12)
-        cpdf.drawString(40, y, "Ödemeler")
-        y -= 20
-        cpdf.setFont("Helvetica", 9)
-        for p in payments:
-            line = f"#{p[0]} - {p[1]} - {p[2]} - {p[3]:.2f} TL - {p[4] or ''}"
-            cpdf.drawString(40, y, line[:110])
-            y -= 14
-            if y < 50:
-                cpdf.showPage()
-                y = height - 40
-                cpdf.setFont("Helvetica", 9)
-
-        y -= 10
-        cpdf.setFont("Helvetica-Bold", 12)
-        cpdf.drawString(40, y, "Giderler")
-        y -= 20
-        cpdf.setFont("Helvetica", 9)
-        for e in expenses:
-            line = f"#{e[0]} - {e[1]} - {e[2]} - {e[3]} - {e[4]:.2f} TL - {e[5] or ''}"
-            cpdf.drawString(40, y, line[:110])
-            y -= 14
-            if y < 50:
-                cpdf.showPage()
-                y = height - 40
-                cpdf.setFont("Helvetica", 9)
-
-        y -= 20
         cpdf.setFont("Helvetica-Bold", 11)
-        cpdf.drawString(40, y, f"Toplam Gelir : {total_income:.2f} TL")
-        y -= 14
-        cpdf.drawString(40, y, f"Toplam Gider : {total_expense:.2f} TL")
-        y -= 14
-        cpdf.drawString(40, y, f"Kâr / Zarar : {(total_income-total_expense):.2f} TL")
+        cpdf.drawString(40, y, "Ödemeler")
+        y -= 18
+        cpdf.setFont("Helvetica", 9)
+
+        for r in pay_rows:
+            line = f"{r[0]} | {r[1] or ''} | {r[2]:.2f} TL | {r[3] or ''}"
+            cpdf.drawString(40, y, line[:110])
+            y -= 12
+            if y < 60:
+                cpdf.showPage()
+                y = height - 40
+                cpdf.setFont("Helvetica", 9)
+
+        y -= 16
+        cpdf.setFont("Helvetica-Bold", 11)
+        cpdf.drawString(40, y, "Giderler")
+        y -= 18
+        cpdf.setFont("Helvetica", 9)
+
+        for e in exp_rows:
+            line = f"{e[0]} | {e[1] or ''} | {e[2]:.2f} TL | {e[3] or ''} | {e[4] or ''} | {e[5] or ''}"
+            cpdf.drawString(40, y, line[:120])
+            y -= 12
+            if y < 60:
+                cpdf.showPage()
+                y = height - 40
+                cpdf.setFont("Helvetica", 9)
+
+        y -= 16
+        cpdf.setFont("Helvetica-Bold", 10)
+        cpdf.drawString(40, y, f"Toplam Gelir   : {total_income:.2f} TL")
+        y -= 12
+        cpdf.drawString(40, y, f"Toplam Gider   : {total_expense:.2f} TL")
+        y -= 12
+        cpdf.drawString(40, y, f"Kâr / Zarar    : {profit:.2f} TL")
 
         cpdf.showPage()
         cpdf.save()
@@ -629,30 +631,30 @@ def daily_report():
         )
 
 
-# ----------------- ARAÇ İŞLEMLERİ -----------------
+# ----------------- ARAÇ / HAT İŞLEMLERİ -----------------
 @app.route("/add_vehicle", methods=["POST"])
 @login_required
 def add_vehicle():
     plate = request.form.get("plate", "").strip()
-    driver_name = request.form.get("vehicle_name", "").strip()
+    driver_name = request.form.get("driver_name", "").strip()
     capacity = request.form.get("capacity", "").strip()
     route = request.form.get("route", "").strip()
 
     if not plate:
-        flash("Plaka zorunludur.", "danger")
+        flash("Araç plakası zorunludur.", "danger")
         return redirect(url_for("index", tab="vehicles"))
 
     try:
-        cap = int(capacity) if capacity else 0
+        capacity_val = int(capacity) if capacity else None
     except ValueError:
-        cap = 0
+        capacity_val = None
 
     conn = get_conn()
     c = conn.cursor()
     c.execute("""
-        INSERT INTO vehicles (plate, name, capacity, route)
-        VALUES (?, ?, ?, ?)
-    """, (plate, driver_name, cap, route))
+    INSERT INTO vehicles (plate, name, capacity, route, is_active)
+    VALUES (?, ?, ?, ?, 1)
+    """, (plate, driver_name, capacity_val, route))
     conn.commit()
     conn.close()
 
@@ -660,40 +662,42 @@ def add_vehicle():
     return redirect(url_for("index", tab="vehicles"))
 
 
-@app.route("/update_vehicle/<int:vehicle_id>", methods=["POST"])
+@app.route("/update_vehicle/<int:vehicle_id>", methods=["POST", "GET"])
 @login_required
 def update_vehicle(vehicle_id):
+    if request.method == "GET":
+        return redirect(url_for("index", tab="vehicles"))
+
     plate = request.form.get("plate", "").strip()
-    driver_name = request.form.get("vehicle_name", "").strip()
+    driver_name = request.form.get("driver_name", "").strip()
     capacity = request.form.get("capacity", "").strip()
     route = request.form.get("route", "").strip()
+    is_active = request.form.get("is_active", "1")
 
     if not plate:
-        flash("Plaka boş olamaz.", "danger")
+        flash("Araç plakası zorunludur.", "danger")
         return redirect(url_for("index", tab="vehicles"))
 
     try:
-        cap = int(capacity) if capacity else None
+        capacity_val = int(capacity) if capacity else None
     except ValueError:
-        cap = None
+        capacity_val = None
+
+    is_active_val = 1 if is_active == "1" else 0
 
     conn = get_conn()
     c = conn.cursor()
-    if cap is None:
-        c.execute(
-            "UPDATE vehicles SET plate = ?, name = ?, capacity = NULL, route = ? WHERE id = ?",
-            (plate, driver_name, route, vehicle_id),
-        )
-    else:
-        c.execute(
-            "UPDATE vehicles SET plate = ?, name = ?, capacity = ?, route = ? WHERE id = ?",
-            (plate, driver_name, cap, route, vehicle_id),
-        )
+    c.execute("""
+    UPDATE vehicles
+    SET plate=?, name=?, capacity=?, route=?, is_active=?
+    WHERE id=?
+    """, (plate, driver_name, capacity_val, route, is_active_val, vehicle_id))
     conn.commit()
     conn.close()
 
-    flash("Araç bilgileri güncellendi.", "success")
+    flash("Araç güncellendi.", "success")
     return redirect(url_for("index", tab="vehicles"))
+
 
 @app.route("/assign_vehicle", methods=["POST"])
 @login_required
@@ -710,25 +714,23 @@ def assign_vehicle():
 
     today = date.today().isoformat()
 
-    # Bu öğrencinin eski araç bağını kapat (varsa)
     c.execute("""
-        UPDATE student_vehicle
-        SET end_date = ?
-        WHERE student_id = ?
-          AND (end_date IS NULL OR end_date = '')
+    UPDATE student_vehicle
+    SET end_date=?
+    WHERE student_id=? AND (end_date IS NULL OR end_date='')
     """, (today, student_id))
 
-    # Yeni araç ataması
     c.execute("""
-        INSERT INTO student_vehicle (student_id, vehicle_id, start_date)
-        VALUES (?, ?, ?)
+    INSERT INTO student_vehicle (student_id, vehicle_id, start_date)
+    VALUES (?, ?, ?)
     """, (student_id, vehicle_id, today))
 
     conn.commit()
     conn.close()
 
-    flash("Öğrenci seçilen araca bağlandı.", "success")
+    flash("Öğrenci araca atandı.", "success")
     return redirect(url_for("index", tab="vehicles"))
+
 
 @app.route("/vehicle_report/<int:vehicle_id>/<string:report_format>")
 @login_required
@@ -736,10 +738,9 @@ def vehicle_report(vehicle_id, report_format):
     conn = get_conn()
     c = conn.cursor()
 
-    # Araç bilgisi
     c.execute(
         "SELECT id, plate, name, capacity, route FROM vehicles WHERE id=?",
-        (vehicle_id,)
+        (vehicle_id,),
     )
     vh = c.fetchone()
     if not vh:
@@ -747,22 +748,20 @@ def vehicle_report(vehicle_id, report_format):
         flash("Araç bulunamadı.", "danger")
         return redirect(url_for("index", tab="vehicles"))
 
-    # Araca bağlı aktif öğrenciler
     c.execute("""
-        SELECT s.name, s.school, s.parent_name, s.phone, s.monthly_fee
-        FROM student_vehicle sv
-        JOIN students s ON s.id = sv.student_id
-        WHERE sv.vehicle_id = ?
-          AND (sv.end_date IS NULL OR sv.end_date = '')
-          AND s.is_active = 1
-        ORDER BY s.name
+    SELECT s.name, s.school, s.parent_name, s.phone, s.monthly_fee
+    FROM student_vehicle sv
+    JOIN students s ON s.id = sv.student_id
+    WHERE sv.vehicle_id = ?
+      AND (sv.end_date IS NULL OR sv.end_date = '')
+      AND s.is_active = 1
+    ORDER BY s.name
     """, (vehicle_id,))
     students_rows = c.fetchall()
     conn.close()
 
     total_fee = sum((r[4] or 0) for r in students_rows)
 
-    # ---------- EXCEL (CSV) ----------
     if report_format.lower() == "excel":
         output = io.StringIO()
         writer = csv.writer(output, delimiter=';')
@@ -778,10 +777,10 @@ def vehicle_report(vehicle_id, report_format):
 
         for r in students_rows:
             writer.writerow([
-                r[0],           # öğrenci
-                r[1] or "",     # okul
-                r[2] or "",     # veli
-                r[3] or "",     # telefon
+                r[0],
+                r[1] or "",
+                r[2] or "",
+                r[3] or "",
                 "%.2f" % (r[4] or 0),
             ])
 
@@ -799,7 +798,6 @@ def vehicle_report(vehicle_id, report_format):
             mimetype="text/csv",
         )
 
-    # ---------- PDF ----------
     else:
         try:
             from reportlab.pdfgen import canvas
@@ -859,88 +857,39 @@ def vehicle_report(vehicle_id, report_format):
             mimetype="application/pdf",
         )
 
-def assign_vehicle():
-    student_id = request.form.get("student_id_assign")
-    vehicle_id = request.form.get("vehicle_id_assign")
 
-    if not student_id or not vehicle_id:
-        flash("Öğrenci ve araç seçmelisiniz.", "danger")
-        return redirect(url_for("index", tab="vehicles"))
-
-    conn = get_conn()
-    c = conn.cursor()
-
-    try:
-        sid = int(student_id)
-        vid = int(vehicle_id)
-    except ValueError:
-        flash("Seçim hatalı.", "danger")
-        conn.close()
-        return redirect(url_for("index", tab="vehicles"))
-
-    # Kapasite kontrolü
-    c.execute("SELECT capacity FROM vehicles WHERE id=?", (vid,))
-    row = c.fetchone()
-    capacity = row[0] if row else None
-
-    current = 0
-    if capacity and capacity > 0:
-        c.execute("""
-            SELECT COUNT(*)
-            FROM student_vehicle
-            WHERE vehicle_id=? AND (end_date IS NULL OR end_date='')
-        """, (vid,))
-        current = c.fetchone()[0] or 0
-
-    if capacity and capacity > 0 and current >= capacity:
-        flash(f"Araç kapasitesi dolu! Kapasite: {capacity}, kayıtlı öğrenci: {current}", "warning")
-    else:
-        c.execute("""
-            INSERT INTO student_vehicle (student_id, vehicle_id, start_date)
-            VALUES (?, ?, ?)
-        """, (sid, vid, date.today().isoformat()))
-        conn.commit()
-        flash("Öğrenci araca bağlandı.", "success")
-
-    conn.close()
-    return redirect(url_for("index", tab="vehicles"))
-
-
-# ----------------- GİDER / KÂR-ZARAR -----------------
+# ----------------- GİDER İŞLEMLERİ -----------------
 @app.route("/add_expense", methods=["POST"])
 @login_required
 def add_expense():
     vehicle_id = request.form.get("vehicle_id_exp", "")
-    exp_date = request.form.get("exp_date", "") or date.today().isoformat()
+    exp_date = request.form.get("exp_date", "").strip()
     category = request.form.get("category", "").strip()
-    amount = request.form.get("amount_exp", "").replace(",", ".")
+    amount_str = request.form.get("amount_exp", "").strip()
     description = request.form.get("description_exp", "").strip()
 
-    if not category or not amount:
-        flash("Kategori ve tutar zorunludur.", "danger")
+    if not exp_date or not category or not amount_str:
+        flash("Tarih, kategori ve tutar zorunlu alanlardır.", "danger")
         return redirect(url_for("index", tab="expenses"))
 
     try:
-        amt = float(amount)
+        amount = float(amount_str.replace(",", "."))
     except ValueError:
         flash("Tutar sayısal olmalıdır.", "danger")
         return redirect(url_for("index", tab="expenses"))
 
-    try:
-        vid = int(vehicle_id) if vehicle_id else None
-    except ValueError:
-        vid = None
+    vehicle_id_val = int(vehicle_id) if vehicle_id else None
 
     conn = get_conn()
     c = conn.cursor()
     c.execute("""
-        INSERT INTO expenses (vehicle_id, exp_date, category, amount, description)
-        VALUES (?, ?, ?, ?, ?)
-    """, (vid, exp_date, category, amt, description))
+    INSERT INTO expenses (vehicle_id, exp_date, category, amount, description)
+    VALUES (?, ?, ?, ?, ?)
+    """, (vehicle_id_val, exp_date, category, amount, description))
     conn.commit()
     conn.close()
 
-    flash("Gider kaydedildi.", "success")
+    flash("Gider eklendi.", "success")
     return redirect(url_for("index", tab="expenses"))
 
 
@@ -951,23 +900,23 @@ def profit():
     end = request.form.get("end_date_profit", "")
 
     if not start or not end:
-        flash("Başlangıç ve bitiş tarihi girilmelidir.", "danger")
+        flash("Başlangıç ve bitiş tarihlerini giriniz.", "danger")
         return redirect(url_for("index", tab="expenses"))
 
     conn = get_conn()
     c = conn.cursor()
 
     c.execute("""
-        SELECT COALESCE(SUM(amount),0)
-        FROM payments
-        WHERE pay_date >= ? AND pay_date <= ?
+    SELECT COALESCE(SUM(amount), 0)
+    FROM payments
+    WHERE pay_date BETWEEN ? AND ?
     """, (start, end))
     income = c.fetchone()[0] or 0.0
 
     c.execute("""
-        SELECT COALESCE(SUM(amount),0)
-        FROM expenses
-        WHERE exp_date >= ? AND exp_date <= ?
+    SELECT COALESCE(SUM(amount), 0)
+    FROM expenses
+    WHERE exp_date BETWEEN ? AND ?
     """, (start, end))
     expense = c.fetchone()[0] or 0.0
 
@@ -985,4 +934,4 @@ def profit():
 # ----------------- MAIN -----------------
 if __name__ == "__main__":
     create_tables()
-    app.run(debug=True) # Sadece kendi bilgisayarında çalıştırırken
+    app.run(debug=True)  # Sadece kendi bilgisayarında çalıştırırken
