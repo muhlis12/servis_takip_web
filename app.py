@@ -19,6 +19,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "yerelde-cok-gizli-olmayan-bir-sey")
 
 
+create_tables()
 # ----------------- DB BAĞLANTI -----------------
 def get_conn():
     return sqlite3.connect(DB_NAME)
@@ -165,6 +166,34 @@ def ensure_daily_backup():
     conn.close()
 
 
+# ----------------- SMS (MOCK) -----------------
+def send_sms_to_parent(student_id, amount, pay_date, description):
+    """
+    Burada gerçek SMS servisi (NetGSM, İleti Merkezi vs.) ile entegrasyon yapılabilir.
+    Şimdilik sadece konsola yazıyor.
+    """
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT parent_name, phone, name FROM students WHERE id=?", (student_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if not row:
+        return
+
+    parent_name, phone, student_name = row[0], row[1], row[2]
+    if not phone:
+        return
+
+    message = (
+        f"{parent_name} velimiz, {student_name} için "
+        f"{pay_date} tarihinde {amount:.2f} TL ödeme alınmıştır. "
+        "Öz Ceylan Turizm teşekkür eder."
+    )
+    # Şimdilik sadece log:
+    print(f"[SMS MOCK] {phone} -> {message}")
+
+
 # ----------------- LOGIN KONTROL DECORATOR -----------------
 def login_required(f):
     @wraps(f)
@@ -275,6 +304,14 @@ def index():
     """)
     payments_rows = c.fetchall()
 
+    # Tüm ödemelerden öğrenci bazlı toplam (aidat hesabı için)
+    c.execute("""
+        SELECT student_id, COALESCE(SUM(amount), 0)
+        FROM payments
+        GROUP BY student_id
+    """)
+    payment_totals_rows = c.fetchall()
+
     # Giderler (son 50)
     c.execute("""
         SELECT e.id, e.exp_date, e.category, e.amount, e.description,
@@ -288,13 +325,72 @@ def index():
 
     conn.close()
 
-    # >>> ÖZET / SUMMARY HESABI <<<
+    # Ödemelerden sözlük: {student_id: toplam_odeme}
+    payment_totals = {row[0]: row[1] for row in payment_totals_rows}
 
-    # payments_rows ve expenses_rows elemanları dict değil TUPLE.
-    # Sorguda amount sütunu 4. eleman değil 3. indeks:
-    # 0:id, 1:öğrenci adı / exp_date, 2:tarih/kategori, 3:amount, 4:description...
-    total_income = sum(p[3] for p in payments_rows)
-    total_expense = sum(e[3] for e in expenses_rows)
+    # >>> AİDAT GECİKME LİSTESİ HESABI <<<
+    today = date.today()
+    current_year = today.year
+    current_month = today.month
+
+    overdue_dues = []
+
+    for s in students_rows:
+        sid = s[0]
+        name = s[1]
+        school = s[2]
+        parent_name = s[3]
+        phone = s[4]
+        monthly_fee = s[5] or 0
+        start_year = s[6]
+        start_month = s[7]
+        is_active = s[8]
+
+        if is_active != 1:
+            continue
+        if monthly_fee <= 0:
+            continue
+        if not start_year or not start_month:
+            # Başlangıç tarihi yoksa gecikme hesabını atlıyoruz
+            continue
+
+        # Kaç ay geçmiş? (maks 9 ay - okul dönemi)
+        start_index = start_year * 12 + start_month
+        today_index = current_year * 12 + current_month
+        months_passed = today_index - start_index + 1
+        if months_passed < 0:
+            months_passed = 0
+        if months_passed > 9:
+            months_passed = 9
+
+        # Yıllık toplam ve bugüne kadar ödenmesi gereken
+        annual_total = monthly_fee * 9
+        expected_so_far = monthly_fee * months_passed
+
+        total_paid = payment_totals.get(sid, 0.0)
+        overdue_amount = max(expected_so_far - total_paid, 0.0)
+        remaining_year = max(annual_total - total_paid, 0.0)
+
+        if overdue_amount > 1:  # 1 TL'den küçükleri sayma
+            overdue_dues.append({
+                "student_id": sid,
+                "student_name": name,
+                "school": school,
+                "parent_name": parent_name,
+                "phone": phone,
+                "monthly_fee": monthly_fee,
+                "start_year": start_year,
+                "start_month": start_month,
+                "total_paid": total_paid,
+                "annual_total": annual_total,
+                "expected_so_far": expected_so_far,
+                "overdue_amount": overdue_amount,
+                "remaining_year": remaining_year,
+            })
+
+    # ÜST KARTLAR İÇİN ÖZET
+    total_income = sum(p[3] for p in payments_rows) if payments_rows else 0.0
+    total_expense = sum(e[3] for e in expenses_rows) if expenses_rows else 0.0
 
     # aktif öğrenci sayısı (is_active = 1)
     active_student_count = len([s for s in students_rows if s[8] == 1])
@@ -317,11 +413,10 @@ def index():
         students_for_select=students_for_select,
         payments=payments_rows,
         expenses=expenses_rows,
-        summary=summary,      # <-- buradan şablona gidiyor
+        summary=summary,
+        overdue_dues=overdue_dues,
         active_tab=active_tab
     )
-
-
 
 
 # ----------------- ÖĞRENCİ İŞLEMLERİ -----------------
@@ -333,18 +428,42 @@ def add_student():
     parent_name = request.form.get("parent_name", "").strip()
     phone = request.form.get("phone", "").strip()
     monthly_fee = request.form.get("monthly_fee", "").strip()
+    annual_fee = request.form.get("annual_fee", "").strip()
     start_year = request.form.get("start_year", "").strip()
     start_month = request.form.get("start_month", "").strip()
 
-    if not name or not monthly_fee:
-        flash("Öğrenci adı ve aylık ücret zorunludur.", "danger")
+    if not name or (not monthly_fee and not annual_fee):
+        flash("Öğrenci adı ve (aylık veya yıllık) ücret zorunludur.", "danger")
         return redirect(url_for("index", tab="students"))
 
-    try:
-        monthly_fee_val = float(monthly_fee.replace(",", "."))
-    except ValueError:
-        flash("Aylık ücret sayısal olmalıdır.", "danger")
+    monthly_fee_val = None
+    annual_fee_val = None
+
+    # Yıllık ücret varsa
+    if annual_fee:
+        try:
+            annual_fee_val = float(annual_fee.replace(",", "."))
+        except ValueError:
+            flash("Yıllık ücret sayısal olmalıdır.", "danger")
+            return redirect(url_for("index", tab="students"))
+
+    # Aylık ücret varsa
+    if monthly_fee:
+        try:
+            monthly_fee_val = float(monthly_fee.replace(",", "."))
+        except ValueError:
+            flash("Aylık ücret sayısal olmalıdır.", "danger")
+            return redirect(url_for("index", tab="students"))
+
+    if annual_fee_val is None and monthly_fee_val is None:
+        flash("En az aylık veya yıllık ücretten birini giriniz.", "danger")
         return redirect(url_for("index", tab="students"))
+
+    if annual_fee_val is not None and monthly_fee_val is None:
+        monthly_fee_val = annual_fee_val / 9.0  # 9 aylık eğitim yılı
+
+    if monthly_fee_val is not None and annual_fee_val is None:
+        annual_fee_val = monthly_fee_val * 9.0   # 9 aylık eğitim yılı
 
     try:
         sy = int(start_year) if start_year else None
@@ -373,19 +492,41 @@ def update_student(student_id):
     parent_name = request.form.get("parent_name", "").strip()
     phone = request.form.get("phone", "").strip()
     monthly_fee = request.form.get("monthly_fee", "").strip()
+    annual_fee = request.form.get("annual_fee", "").strip()
     start_year = request.form.get("start_year", "").strip()
     start_month = request.form.get("start_month", "").strip()
     is_active = request.form.get("is_active", "1")
 
-    if not name or not monthly_fee:
-        flash("Öğrenci adı ve aylık ücret zorunludur.", "danger")
+    if not name or (not monthly_fee and not annual_fee):
+        flash("Öğrenci adı ve (aylık veya yıllık) ücret zorunludur.", "danger")
         return redirect(url_for("index", tab="students"))
 
-    try:
-        monthly_fee_val = float(monthly_fee.replace(",", "."))
-    except ValueError:
-        flash("Aylık ücret sayısal olmalıdır.", "danger")
+    monthly_fee_val = None
+    annual_fee_val = None
+
+    if annual_fee:
+        try:
+            annual_fee_val = float(annual_fee.replace(",", "."))
+        except ValueError:
+            flash("Yıllık ücret sayısal olmalıdır.", "danger")
+            return redirect(url_for("index", tab="students"))
+
+    if monthly_fee:
+        try:
+            monthly_fee_val = float(monthly_fee.replace(",", "."))
+        except ValueError:
+            flash("Aylık ücret sayısal olmalıdır.", "danger")
+            return redirect(url_for("index", tab="students"))
+
+    if annual_fee_val is None and monthly_fee_val is None:
+        flash("En az aylık veya yıllık ücretten birini giriniz.", "danger")
         return redirect(url_for("index", tab="students"))
+
+    if annual_fee_val is not None and monthly_fee_val is None:
+        monthly_fee_val = annual_fee_val / 9.0
+
+    if monthly_fee_val is not None and annual_fee_val is None:
+        annual_fee_val = monthly_fee_val * 9.0
 
     try:
         sy = int(start_year) if start_year else None
@@ -399,7 +540,8 @@ def update_student(student_id):
     c = conn.cursor()
     c.execute("""
     UPDATE students
-    SET name=?, school=?, parent_name=?, phone=?, monthly_fee=?, start_year=?, start_month=?, is_active=?
+    SET name=?, school=?, parent_name=?, phone=?, monthly_fee=?,
+        start_year=?, start_month=?, is_active=?
     WHERE id=?
     """, (name, school, parent_name, phone, monthly_fee_val, sy, sm, is_active_val, student_id))
     conn.commit()
@@ -450,6 +592,12 @@ def add_payment():
     conn.commit()
     conn.close()
 
+    # Ödeme sonrası veliye SMS (mock)
+    try:
+        send_sms_to_parent(int(student_id), amount, pay_date, description)
+    except Exception as e:
+        print(f"[SMS HATASI] {e}")
+
     flash("Ödeme eklendi.", "success")
     return redirect(url_for("index", tab="payments"))
 
@@ -479,7 +627,6 @@ def payments_by_date():
     total_amount = sum(r[3] for r in rows) if rows else 0.0
 
     flash(f"{filter_date} tarihinde {len(rows)} ödeme var. Toplam: {total_amount:.2f} TL", "info")
-    # Tarih filtresini querystring ile tekrar gönderebiliriz (gerekirse dashboard'ta gösterilebilir)
     return redirect(url_for("index", tab="payments"))
 
 
@@ -933,5 +1080,5 @@ def profit():
 
 # ----------------- MAIN -----------------
 if __name__ == "__main__":
-    create_tables()
+    
     app.run(debug=True)  # Sadece kendi bilgisayarında çalıştırırken
