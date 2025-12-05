@@ -1,325 +1,627 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="container-fluid mt-4">
+<div class="container-fluid">
 
-    <!-- ÜST ÖZET KARTLARI -->
-    <div class="row mb-3">
-        <div class="col-md-3 mb-3">
-            <div class="card text-bg-primary h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Öğrenci</h6>
-                    <div class="fs-2">
-                        {{ summary.student_count }}
-                    </div>
-                </div>
-            </div>
+  <!-- ÜST ÖZET KARTLARI -->
+  <div class="row mb-4">
+    <div class="col-md-3 mb-3">
+      <div class="card text-bg-primary h-100">
+        <div class="card-body">
+          <h6 class="card-title">Aktif Öğrenci</h6>
+          <div class="fs-2">{{ summary.student_count }}</div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-bg-success h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Araç</h6>
-                    <div class="fs-2">
-                        {{ summary.vehicle_count }}
-                    </div>
-                </div>
-            </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-bg-success h-100">
+        <div class="card-body">
+          <h6 class="card-title">Araç Sayısı</h6>
+          <div class="fs-2">{{ summary.vehicle_count }}</div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-bg-info h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Toplam Gelir</h6>
-                    <div class="fs-4">
-                        {{ "%.2f"|format(summary.total_income) }} TL
-                    </div>
-                </div>
-            </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-bg-info h-100">
+        <div class="card-body">
+          <h6 class="card-title">Toplam Gelir</h6>
+          <div class="fs-4">{{ "%.2f"|format(summary.total_income) }} TL</div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-bg-danger h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Kar / Zarar</h6>
-                    <div class="fs-4">
-                        {{ "%.2f"|format(summary.profit) }} TL
-                    </div>
-                </div>
-            </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-bg-danger h-100">
+        <div class="card-body">
+          <h6 class="card-title">Kâr / Zarar</h6>
+          <div class="fs-4">{{ "%.2f"|format(summary.profit) }} TL</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- SOL SEKMELER -->
+    <div class="col-md-2 mb-3">
+      <div class="list-group" id="sidebarTabs" role="tablist">
+        <a class="list-group-item list-group-item-action {% if active_tab=='students' %}active{% endif %}"
+           data-bs-toggle="list"
+           href="#tab-students"
+           role="tab">
+          Öğrenciler
+        </a>
+        <a class="list-group-item list-group-item-action {% if active_tab=='schools' %}active{% endif %}"
+           data-bs-toggle="list"
+           href="#tab-schools"
+           role="tab">
+          Okullar
+        </a>
+        <a class="list-group-item list-group-item-action {% if active_tab=='payments' %}active{% endif %}"
+           data-bs-toggle="list"
+           href="#tab-payments"
+           role="tab">
+          Ödemeler
+        </a>
+        <a class="list-group-item list-group-item-action {% if active_tab=='vehicles' %}active{% endif %}"
+           data-bs-toggle="list"
+           href="#tab-vehicles"
+           role="tab">
+          Araçlar
+        </a>
+        <a class="list-group-item list-group-item-action {% if active_tab=='expenses' %}active{% endif %}"
+           data-bs-toggle="list"
+           href="#tab-expenses"
+           role="tab">
+          Giderler
+        </a>
+      </div>
     </div>
 
-    <!-- SOL MENÜ SEKME LİSTESİ -->
-    <div class="row">
-        <div class="col-md-2 mb-3">
-            <div class="list-group" id="sidebarTabs" role="tablist">
-                <a class="list-group-item list-group-item-action active"
-                   id="students-tab"
-                   data-bs-toggle="list"
-                   href="#students"
-                   role="tab">
-                    Öğrenciler
-                </a>
-                <a class="list-group-item list-group-item-action"
-                   id="schools-tab"
-                   data-bs-toggle="list"
-                   href="#schools"
-                   role="tab">
-                    Okullar
-                </a>
-                <a class="list-group-item list-group-item-action"
-                   id="payments-tab"
-                   data-bs-toggle="list"
-                   href="#payments"
-                   role="tab">
-                    Ödemeler
-                </a>
-                <a class="list-group-item list-group-item-action"
-                   id="vehicles-tab"
-                   data-bs-toggle="list"
-                   href="#vehicles"
-                   role="tab">
-                    Araçlar
-                </a>
-                <a class="list-group-item list-group-item-action"
-                   id="expenses-tab"
-                   data-bs-toggle="list"
-                   href="#expenses"
-                   role="tab">
-                    Giderler
-                </a>
+    <!-- SEKME İÇERİKLERİ -->
+    <div class="col-md-10">
+      <div class="tab-content">
+
+        <!-- ÖĞRENCİLER -->
+        <div class="tab-pane fade {% if active_tab=='students' %}show active{% endif %}"
+             id="tab-students"
+             role="tabpanel">
+
+          <div class="row">
+            <!-- ÖĞRENCİ EKLE FORMU -->
+            <div class="col-lg-4 mb-3">
+              <div class="card h-100">
+                <div class="card-header">Yeni Öğrenci</div>
+                <div class="card-body">
+                  <form method="POST" action="{{ url_for('add_student') }}">
+                    <div class="mb-2">
+                      <label class="form-label">Öğrenci Adı</label>
+                      <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Okul</label>
+                      <input type="text" name="school" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Veli Adı</label>
+                      <input type="text" name="parent_name" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Telefon</label>
+                      <input type="text" name="phone" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Aylık Ücret (TL)</label>
+                      <input type="text" name="monthly_fee" class="form-control" required>
+                    </div>
+                    <div class="row">
+                      <div class="col-6 mb-2">
+                        <label class="form-label">Başlangıç Yılı</label>
+                        <input type="number" name="start_year" class="form-control" min="2000" max="2100">
+                      </div>
+                      <div class="col-6 mb-2">
+                        <label class="form-label">Başlangıç Ayı</label>
+                        <input type="number" name="start_month" class="form-control" min="1" max="12">
+                      </div>
+                    </div>
+                    <div class="d-grid mt-2">
+                      <button type="submit" class="btn btn-primary btn-sm">Kaydet</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
+
+            <!-- ÖĞRENCİ TABLOSU -->
+            <div class="col-lg-8 mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Öğrenci Listesi</h5>
+                <input type="text"
+                       class="form-control form-control-sm table-search-input"
+                       placeholder="Öğrenci / okul ara..."
+                       onkeyup="filterTable('tableStudents', this.value)">
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-hover" id="tableStudents">
+                  <thead class="table-light">
+                    <tr>
+                      <th>ID</th>
+                      <th>Ad</th>
+                      <th>Okul</th>
+                      <th>Veli</th>
+                      <th>Telefon</th>
+                      <th>Aylık Ücret</th>
+                      <th>Aktif</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for s in students %}
+                    <tr>
+                      <td>{{ s[0] }}</td>
+                      <td>{{ s[1] }}</td>
+                      <td>{{ s[2] }}</td>
+                      <td>{{ s[3] }}</td>
+                      <td>{{ s[4] }}</td>
+                      <td>{{ "%.2f"|format(s[5]) }}</td>
+                      <td>
+                        {% if s[8] == 1 %}
+                          Aktif
+                        {% else %}
+                          Pasif
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- SEKME İÇERİKLERİ -->
-        <div class="col-md-10">
-            <div class="tab-content">
+        <!-- OKULLAR -->
+        <div class="tab-pane fade {% if active_tab=='schools' %}show active{% endif %}"
+             id="tab-schools"
+             role="tabpanel">
 
-                <!-- ÖĞRENCİLER SEKME -->
-                <div class="tab-pane fade show active" id="students" role="tabpanel" aria-labelledby="students-tab">
-
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5>Öğrenciler</h5>
-                        <input type="text" id="searchStudents" class="form-control w-25"
-                               placeholder="Öğrenci / okul ara..."
-                               onkeyup="filterTable('tableStudents', this.value)">
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover table-sm" id="tableStudents">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>İsim</th>
-                                    <th>Okul</th>
-                                    <th>Veli Adı</th>
-                                    <th>Telefon</th>
-                                    <th>Aylık Ücret</th>
-                                    <th>Başlangıç Yılı</th>
-                                    <th>Başlangıç Ayı</th>
-                                    <th>Aktif</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for s in students %}
-                                <tr>
-                                    <td>{{ s[0] }}</td>
-                                    <td>{{ s[1] }}</td>
-                                    <td>{{ s[2] }}</td>
-                                    <td>{{ s[3] }}</td>
-                                    <td>{{ s[4] }}</td>
-                                    <td>{{ "%.2f"|format(s[5]) }}</td>
-                                    <td>{{ s[6] }}</td>
-                                    <td>{{ s[7] }}</td>
-                                    <td>
-                                        {% if s[8] == 1 %}
-                                            Aktif
-                                        {% else %}
-                                            Pasif
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-
+          <div class="row">
+            <div class="col-lg-4 mb-3">
+              <div class="card h-100">
+                <div class="card-header">Okul Bazlı Sayılar</div>
+                <div class="card-body">
+                  <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Okul</th>
+                          <th>Öğrenci Sayısı</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for row in schools_stats %}
+                        <tr>
+                          <td>{{ row[0] }}</td>
+                          <td>{{ row[1] }}</td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                  <small class="text-muted">
+                    Sadece aktif öğrenciler (is_active = 1) sayılır.
+                  </small>
                 </div>
+              </div>
+            </div>
 
-                <!-- OKULLAR SEKME -->
-                <div class="tab-pane fade" id="schools" role="tabpanel" aria-labelledby="schools-tab">
-                    <h5 class="mb-3">Okul İstatistikleri</h5>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-sm">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Okul</th>
-                                    <th>Öğrenci Sayısı</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for row in school_stats %}
-                                <tr>
-                                    <td>{{ row[0] }}</td>
-                                    <td>{{ row[1] }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+            <div class="col-lg-8 mb-3">
+              <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <span>Okul Öğrenci Listesi</span>
+                  <input type="text"
+                         class="form-control form-control-sm table-search-input"
+                         placeholder="Okul / öğrenci ara..."
+                         onkeyup="filterTable('tableSchoolStudents', this.value)">
                 </div>
-
-                <!-- ÖDEMELER SEKME -->
-                <div class="tab-pane fade" id="payments" role="tabpanel" aria-labelledby="payments-tab">
-
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5>Ödemeler (son 50)</h5>
-                        <input type="text" id="searchPayments" class="form-control w-25"
-                               placeholder="Ödeme / öğrenci ara..."
-                               onkeyup="filterTable('tablePayments', this.value)">
-                    </div>
-
-                    <div class="table-responsive mb-3">
-                        <table class="table table-striped table-sm" id="tablePayments">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Öğrenci</th>
-                                    <th>Tarih</th>
-                                    <th>Tutar</th>
-                                    <th>Açıklama</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for p in payments %}
-                                <tr>
-                                    <td>{{ p[0] }}</td>  <!-- payments.id -->
-                                    <td>{{ p[1] }}</td>  <!-- students.name -->
-                                    <td>{{ p[2] }}</td>  <!-- pay_date -->
-                                    <td>{{ "%.2f"|format(p[3]) }}</td> <!-- amount -->
-                                    <td>{{ p[4] }}</td>  <!-- description -->
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-
+                <div class="card-body">
+                  <div class="table-responsive">
+                    <table class="table table-sm table-hover" id="tableSchoolStudents">
+                      <thead class="table-light">
+                        <tr>
+                          <th>ID</th>
+                          <th>Öğrenci</th>
+                          <th>Okul</th>
+                          <th>Veli</th>
+                          <th>Telefon</th>
+                          <th>Aylık Ücret</th>
+                          <th>Durum</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for s in school_students %}
+                        <tr>
+                          <td>{{ s[0] }}</td>
+                          <td>{{ s[1] }}</td>
+                          <td>{{ s[2] }}</td>
+                          <td>{{ s[3] }}</td>
+                          <td>{{ s[4] }}</td>
+                          <td>{{ "%.2f"|format(s[5]) }}</td>
+                          <td>
+                            {% if s[6] == 1 %}
+                              Aktif
+                            {% else %}
+                              Pasif
+                            {% endif %}
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+              </div>
+            </div>
+          </div>
 
-                <!-- ARAÇLAR SEKME -->
-                <div class="tab-pane fade" id="vehicles" role="tabpanel" aria-labelledby="vehicles-tab">
+        </div>
 
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5>Araçlar</h5>
-                        <input type="text" id="searchVehicles" class="form-control w-25"
-                               placeholder="Plaka / şoför ara..."
-                               onkeyup="filterTable('tableVehicles', this.value)">
+        <!-- ÖDEMELER -->
+        <div class="tab-pane fade {% if active_tab=='payments' %}show active{% endif %}"
+             id="tab-payments"
+             role="tabpanel">
+
+          <div class="row">
+            <!-- ÖDEME EKLE + RAPOR -->
+            <div class="col-lg-4 mb-3">
+              <div class="card mb-3">
+                <div class="card-header">Yeni Ödeme</div>
+                <div class="card-body">
+                  <form method="POST" action="{{ url_for('add_payment') }}">
+                    <div class="mb-2">
+                      <label class="form-label">Öğrenci</label>
+                      <select name="student_id" class="form-select" required>
+                        <option value="">Seçiniz</option>
+                        {% for s in students_for_select %}
+                        <option value="{{ s[0] }}">{{ s[1] }}</option>
+                        {% endfor %}
+                      </select>
                     </div>
-
-                    <div class="table-responsive">
-                        <table class="table table-striped table-sm" id="tableVehicles">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Plaka</th>
-                                    <th>Ad</th>
-                                    <th>Kapasite</th>
-                                    <th>Güzergah</th>
-                                    <th>Aktif</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for v in vehicles %}
-                                <tr>
-                                    <td>{{ v[0] }}</td>
-                                    <td>{{ v[1] }}</td>
-                                    <td>{{ v[2] }}</td>
-                                    <td>{{ v[3] }}</td>
-                                    <td>{{ v[4] }}</td>
-                                    <td>
-                                        {% if v[5] == 1 %}
-                                            Aktif
-                                        {% else %}
-                                            Pasif
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="mb-2">
+                      <label class="form-label">Tarih</label>
+                      <input type="date" name="pay_date" class="form-control" required>
                     </div>
-
+                    <div class="mb-2">
+                      <label class="form-label">Tutar (TL)</label>
+                      <input type="text" name="amount" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Açıklama</label>
+                      <input type="text" name="description" class="form-control">
+                    </div>
+                    <div class="d-grid">
+                      <button type="submit" class="btn btn-primary btn-sm">Kaydet</button>
+                    </div>
+                  </form>
                 </div>
+              </div>
 
-                <!-- GİDERLER SEKME -->
-                <div class="tab-pane fade" id="expenses" role="tabpanel" aria-labelledby="expenses-tab">
-
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5>Giderler (son 50)</h5>
-                        <input type="text" id="searchExpenses" class="form-control w-25"
-                               placeholder="Kategori / açıklama ara..."
-                               onkeyup="filterTable('tableExpenses', this.value)">
+              <div class="card">
+                <div class="card-header">Tarih Bazlı Ödeme & Günlük Rapor</div>
+                <div class="card-body">
+                  <form method="POST" action="{{ url_for('payments_by_date') }}" class="mb-3">
+                    <div class="mb-2">
+                      <label class="form-label">Tarih</label>
+                      <input type="date" name="filter_date" class="form-control" required>
                     </div>
-
-                    <div class="table-responsive mb-3">
-                        <table class="table table-striped table-sm" id="tableExpenses">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Tarih</th>
-                                    <th>Kategori</th>
-                                    <th>Tutar</th>
-                                    <th>Araç</th>
-                                    <th>Açıklama</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for e in expenses %}
-                                <tr>
-                                    <td>{{ e[0] }}</td>  <!-- id -->
-                                    <td>{{ e[1] }}</td>  <!-- exp_date -->
-                                    <td>{{ e[2] }}</td>  <!-- category -->
-                                    <td>{{ "%.2f"|format(e[3]) }}</td> <!-- amount -->
-                                    <td>
-                                        {% if e[5] %}
-                                            {{ e[5] }} - {{ e[6] }}
-                                        {% else %}
-                                            -
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ e[4] }}</td>  <!-- description -->
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="d-grid">
+                      <button type="submit" class="btn btn-outline-primary btn-sm">
+                        O Gün Yapılan Ödemeleri Göster
+                      </button>
                     </div>
+                  </form>
 
+                  <form method="POST" action="{{ url_for('daily_report') }}">
+                    <div class="mb-2">
+                      <label class="form-label">Rapor Tarihi</label>
+                      <input type="date" name="report_date" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Format</label>
+                      <select name="report_format" class="form-select">
+                        <option value="excel">Excel (CSV)</option>
+                        <option value="pdf">PDF</option>
+                      </select>
+                    </div>
+                    <div class="d-grid">
+                      <button type="submit" class="btn btn-warning btn-sm">
+                        Günlük Rapor İndir
+                      </button>
+                    </div>
+                  </form>
                 </div>
+              </div>
+            </div>
+
+            <!-- ÖDEMELER TABLOSU -->
+            <div class="col-lg-8 mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Son 50 Ödeme</h5>
+                <input type="text"
+                       class="form-control form-control-sm table-search-input"
+                       placeholder="Öğrenci / açıklama ara..."
+                       onkeyup="filterTable('tablePayments', this.value)">
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-striped" id="tablePayments">
+                  <thead class="table-light">
+                    <tr>
+                      <th>ID</th>
+                      <th>Öğrenci</th>
+                      <th>Tarih</th>
+                      <th>Tutar</th>
+                      <th>Açıklama</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for p in payments %}
+                    <tr>
+                      <td>{{ p[0] }}</td>  {# id #}
+                      <td>{{ p[1] }}</td>  {# öğrenci adı #}
+                      <td>{{ p[2] }}</td>  {# tarih #}
+                      <td>{{ "%.2f"|format(p[3]) }}</td> {# amount #}
+                      <td>{{ p[4] }}</td>  {# açıklama #}
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ARAÇLAR -->
+        <div class="tab-pane fade {% if active_tab=='vehicles' %}show active{% endif %}"
+             id="tab-vehicles"
+             role="tabpanel">
+
+          <div class="row">
+            <!-- ARAÇ EKLE & ÖĞRENCİ ATA -->
+            <div class="col-lg-4 mb-3">
+              <div class="card mb-3">
+                <div class="card-header">Yeni Araç</div>
+                <div class="card-body">
+                  <form method="POST" action="{{ url_for('add_vehicle') }}">
+                    <div class="mb-2">
+                      <label class="form-label">Plaka</label>
+                      <input type="text" name="plate" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Şoför Adı</label>
+                      <input type="text" name="driver_name" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Kapasite</label>
+                      <input type="number" name="capacity" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Güzergah</label>
+                      <input type="text" name="route" class="form-control">
+                    </div>
+                    <div class="d-grid">
+                      <button type="submit" class="btn btn-primary btn-sm">Kaydet</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header">Öğrenciyi Araca Ata</div>
+                <div class="card-body">
+                  <form method="POST" action="{{ url_for('assign_vehicle') }}">
+                    <div class="mb-2">
+                      <label class="form-label">Öğrenci</label>
+                      <select name="student_id_assign" class="form-select" required>
+                        <option value="">Seçiniz</option>
+                        {% for s in students_for_select %}
+                        <option value="{{ s[0] }}">{{ s[1] }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Araç</label>
+                      <select name="vehicle_id_assign" class="form-select" required>
+                        <option value="">Seçiniz</option>
+                        {% for v in vehicles %}
+                        <option value="{{ v[0] }}">{{ v[1] }} - {{ v[2] }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="d-grid">
+                      <button type="submit" class="btn btn-primary btn-sm">
+                        Ata
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
 
             </div>
+
+            <!-- ARAÇ TABLOSU -->
+            <div class="col-lg-8 mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Araç Listesi</h5>
+                <input type="text"
+                       class="form-control form-control-sm table-search-input"
+                       placeholder="Plaka / şoför / güzergah ara..."
+                       onkeyup="filterTable('tableVehicles', this.value)">
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-striped" id="tableVehicles">
+                  <thead class="table-light">
+                    <tr>
+                      <th>ID</th>
+                      <th>Plaka</th>
+                      <th>Şoför</th>
+                      <th>Kapasite</th>
+                      <th>Güzergah</th>
+                      <th>Durum</th>
+                      <th>Rapor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for v in vehicles %}
+                    <tr>
+                      <td>{{ v[0] }}</td>
+                      <td>{{ v[1] }}</td>
+                      <td>{{ v[2] }}</td>
+                      <td>{{ v[3] }}</td>
+                      <td>{{ v[4] }}</td>
+                      <td>
+                        {% if v[5] == 1 %}Aktif{% else %}Pasif{% endif %}
+                      </td>
+                      <td>
+                        <a href="{{ url_for('vehicle_report', vehicle_id=v[0], report_format='excel') }}"
+                           class="btn btn-sm btn-outline-primary">
+                          Excel
+                        </a>
+                        <a href="{{ url_for('vehicle_report', vehicle_id=v[0], report_format='pdf') }}"
+                           class="btn btn-sm btn-outline-danger">
+                          PDF
+                        </a>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+
         </div>
+
+        <!-- GİDERLER -->
+        <div class="tab-pane fade {% if active_tab=='expenses' %}show active{% endif %}"
+             id="tab-expenses"
+             role="tabpanel">
+
+          <div class="row">
+            <!-- GİDER EKLE + KAR/ZARAR -->
+            <div class="col-lg-4 mb-3">
+              <div class="card mb-3">
+                <div class="card-header">Yeni Gider</div>
+                <div class="card-body">
+                  <form method="POST" action="{{ url_for('add_expense') }}">
+                    <div class="mb-2">
+                      <label class="form-label">Araç (opsiyonel)</label>
+                      <select name="vehicle_id_exp" class="form-select">
+                        <option value="">Seçiniz</option>
+                        {% for v in vehicles %}
+                        <option value="{{ v[0] }}">{{ v[1] }} - {{ v[2] }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Tarih</label>
+                      <input type="date" name="exp_date" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Kategori</label>
+                      <input type="text" name="category" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Tutar (TL)</label>
+                      <input type="text" name="amount_exp" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Açıklama</label>
+                      <input type="text" name="description_exp" class="form-control">
+                    </div>
+                    <div class="d-grid">
+                      <button type="submit" class="btn btn-primary btn-sm">Kaydet</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header">Dönemsel Kâr / Zarar</div>
+                <div class="card-body">
+                  <form method="POST" action="{{ url_for('profit') }}">
+                    <div class="mb-2">
+                      <label class="form-label">Başlangıç Tarihi</label>
+                      <input type="date" name="start_date_profit" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Bitiş Tarihi</label>
+                      <input type="date" name="end_date_profit" class="form-control" required>
+                    </div>
+                    <div class="d-grid">
+                      <button type="submit" class="btn btn-warning btn-sm">
+                        Kâr / Zarar Hesapla
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- GİDER TABLOSU -->
+            <div class="col-lg-8 mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Son 50 Gider</h5>
+                <input type="text"
+                       class="form-control form-control-sm table-search-input"
+                       placeholder="Kategori / açıklama / araç ara..."
+                       onkeyup="filterTable('tableExpenses', this.value)">
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-striped" id="tableExpenses">
+                  <thead class="table-light">
+                    <tr>
+                      <th>ID</th>
+                      <th>Tarih</th>
+                      <th>Kategori</th>
+                      <th>Tutar</th>
+                      <th>Araç</th>
+                      <th>Açıklama</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for e in expenses %}
+                    <tr>
+                      <td>{{ e[0] }}</td>  {# id #}
+                      <td>{{ e[1] }}</td>  {# exp_date #}
+                      <td>{{ e[2] }}</td>  {# category #}
+                      <td>{{ "%.2f"|format(e[3]) }}</td> {# amount #}
+                      <td>
+                        {% if e[5] %}
+                          {{ e[5] }} - {{ e[6] }}
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>{{ e[4] }}</td>  {# description #}
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </div>
     </div>
+  </div>
+
 </div>
-
-<!-- Basit tablo filtreleme -->
-<script>
-function filterTable(tableId, query) {
-    const table = document.getElementById(tableId);
-    if (!table) return;
-    const filter = query.toLowerCase();
-    const rows = table.getElementsByTagName("tr");
-
-    for (let i = 1; i < rows.length; i++) {
-        const cells = rows[i].getElementsByTagName("td");
-        let show = false;
-        for (let j = 0; j < cells.length; j++) {
-            const txt = (cells[j].innerText || "").toLowerCase();
-            if (txt.indexOf(filter) !== -1) {
-                show = true;
-                break;
-            }
-        }
-        rows[i].style.display = show ? "" : "none";
-    }
-}
-</script>
 
 {% endblock %}
