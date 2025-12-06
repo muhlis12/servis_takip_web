@@ -145,6 +145,7 @@ def create_tables():
             ("kullanici1", "1234", "Kullanıcı 1", "user"),
             ("kullanici2", "1234", "Kullanıcı 2", "user"),
         ]
+
         for uname, pwd, fname, role in default_users:
             c.execute(
                 "INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)",
