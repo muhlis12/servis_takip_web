@@ -116,6 +116,7 @@ def create_tables():
                 (uname, generate_password_hash(pwd, method="pbkdf2:sha256", salt_length=16), fname, role),
             )
         conn.commit()
+        conn.close()
 
     # ÖĞRENCİ–ARAÇ
     c.execute("""
