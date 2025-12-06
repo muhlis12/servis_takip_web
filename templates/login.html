@@ -1,13 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="row justify-content-center">
+<div class="row justify-content-center mt-4">
   <div class="col-md-4">
-    <div class="card">
+    <div class="card shadow-sm">
       <div class="card-header text-center">
         <h5 class="mb-0">Servis Takip Giriş</h5>
       </div>
       <div class="card-body">
+
+        {# Flask'tan gelen uyarı / hata mesajları #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} py-2">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
         <form method="POST" action="{{ url_for('login') }}">
           <div class="mb-3">
             <label for="username" class="form-label">Kullanıcı Adı</label>
@@ -34,12 +46,12 @@
           </div>
         </form>
 
-        <div class="mt-3 small text-muted">
-          <strong>Varsayılan kullanıcılar:</strong><br>
-          admin / 1234<br>
-          muhlis / 1234<br>
-          kullanici1 / 1234<br>
-          kullanici2 / 1234
+        <div class="mt-3 d-flex justify-content-between small text-muted">
+          <span>Öz Ceylan Turizm</span>
+          {# Şifre değiştirme sayfası yaptık ya, linki buraya koyduk #}
+          <a href="{{ url_for('change_password') }}" class="text-decoration-none">
+            Şifre Değiştir
+          </a>
         </div>
       </div>
     </div>

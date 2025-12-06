@@ -12,14 +12,49 @@ from flask import (
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# PDF fontları için (reportlab yoksa app çökmemesi için try/except)
+try:
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+except ImportError:
+    pdfmetrics = None
+    TTFont = None
+
 # ----------------- AYARLAR -----------------
 DB_NAME = "servis_takip.db"
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "yerelde-cok-gizli-olmayan-bir-sey")
 
+# PDF font klasörü
+FONT_DIR = os.path.join(os.path.dirname(__file__), "fonts")
 
-# create_tables()
+
+def register_pdf_fonts():
+    """
+    Türkçe karakterler için DejaVu fontlarını kaydeder.
+    'fonts' klasöründeki TTF dosyalarını kullanır.
+    """
+    if pdfmetrics is None or TTFont is None:
+        # reportlab kurulmamışsa sessizce geç
+        print("[PDF FONT] reportlab bulunamadı, font kaydı atlandı.")
+        return
+
+    try:
+        registered = pdfmetrics.getRegisteredFontNames()
+        if "DejaVu" in registered:
+            return  # daha önce kaydedilmiş
+
+        normal_path = os.path.join(FONT_DIR, "DejaVuSans.ttf")
+        bold_path = os.path.join(FONT_DIR, "DejaVuSans-Bold.ttf")
+
+        pdfmetrics.registerFont(TTFont("DejaVu", normal_path))
+        pdfmetrics.registerFont(TTFont("DejaVu-Bold", bold_path))
+        print("[PDF FONT] DejaVu fontları kaydedildi.")
+    except Exception as e:
+        print("[PDF FONT HATASI]", e)
+
+
 # ----------------- DB BAĞLANTI -----------------
 def get_conn():
     return sqlite3.connect(DB_NAME)
@@ -239,7 +274,56 @@ def logout():
     session.clear()
     flash("Oturum kapatıldı.", "info")
     return redirect(url_for("login"))
+@app.route("/change_password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    if request.method == "POST":
+        current_password = request.form.get("current_password", "").strip()
+        new_password = request.form.get("new_password", "").strip()
+        new_password2 = request.form.get("new_password2", "").strip()
 
+        if not current_password or not new_password or not new_password2:
+            flash("Tüm alanlar zorunludur.", "danger")
+            return redirect(url_for("change_password"))
+
+        if new_password != new_password2:
+            flash("Yeni şifre ve tekrarı aynı olmalıdır.", "danger")
+            return redirect(url_for("change_password"))
+
+        conn = get_conn()
+        c = conn.cursor()
+        c.execute(
+            "SELECT password_hash FROM users WHERE id=?",
+            (session["user_id"],)
+        )
+        row = c.fetchone()
+
+        if not row:
+            conn.close()
+            flash("Kullanıcı bulunamadı.", "danger")
+            return redirect(url_for("logout"))
+
+        if not check_password_hash(row[0], current_password):
+            conn.close()
+            flash("Mevcut şifre hatalı.", "danger")
+            return redirect(url_for("change_password"))
+
+        new_hash = generate_password_hash(
+            new_password,
+            method="pbkdf2:sha256",
+            salt_length=16
+        )
+        c.execute(
+            "UPDATE users SET password_hash=? WHERE id=?",
+            (new_hash, session["user_id"])
+        )
+        conn.commit()
+        conn.close()
+
+        flash("Şifreniz başarıyla güncellendi.", "success")
+        return redirect(url_for("index"))
+
+    return render_template("change_password.html")
 
 # --- ANA SAYFA ---
 @app.route("/")
@@ -720,19 +804,22 @@ def daily_report():
             flash("PDF oluşturmak için 'reportlab' kütüphanesini kurmalısınız.", "danger")
             return redirect(url_for("index", tab="payments"))
 
+        # Türkçe karakter için fontları kaydet
+        register_pdf_fonts()
+
         buffer = io.BytesIO()
         cpdf = canvas.Canvas(buffer, pagesize=A4)
         width, height = A4
 
         y = height - 40
-        cpdf.setFont("Helvetica-Bold", 14)
+        cpdf.setFont("DejaVu-Bold", 14)
         cpdf.drawString(40, y, f"Günlük Rapor - {report_date}")
         y -= 25
 
-        cpdf.setFont("Helvetica-Bold", 11)
+        cpdf.setFont("DejaVu-Bold", 11)
         cpdf.drawString(40, y, "Ödemeler")
         y -= 18
-        cpdf.setFont("Helvetica", 9)
+        cpdf.setFont("DejaVu", 9)
 
         for r in pay_rows:
             line = f"{r[0]} | {r[1] or ''} | {r[2]:.2f} TL | {r[3] or ''}"
@@ -741,13 +828,13 @@ def daily_report():
             if y < 60:
                 cpdf.showPage()
                 y = height - 40
-                cpdf.setFont("Helvetica", 9)
+                cpdf.setFont("DejaVu", 9)
 
         y -= 16
-        cpdf.setFont("Helvetica-Bold", 11)
+        cpdf.setFont("DejaVu-Bold", 11)
         cpdf.drawString(40, y, "Giderler")
         y -= 18
-        cpdf.setFont("Helvetica", 9)
+        cpdf.setFont("DejaVu", 9)
 
         for e in exp_rows:
             line = f"{e[0]} | {e[1] or ''} | {e[2]:.2f} TL | {e[3] or ''} | {e[4] or ''} | {e[5] or ''}"
@@ -756,10 +843,10 @@ def daily_report():
             if y < 60:
                 cpdf.showPage()
                 y = height - 40
-                cpdf.setFont("Helvetica", 9)
+                cpdf.setFont("DejaVu", 9)
 
         y -= 16
-        cpdf.setFont("Helvetica-Bold", 10)
+        cpdf.setFont("DejaVu-Bold", 10)
         cpdf.drawString(40, y, f"Toplam Gelir   : {total_income:.2f} TL")
         y -= 12
         cpdf.drawString(40, y, f"Toplam Gider   : {total_expense:.2f} TL")
@@ -954,16 +1041,19 @@ def vehicle_report(vehicle_id, report_format):
             flash("PDF için 'reportlab' kütüphanesini kurmalısınız: pip install reportlab", "danger")
             return redirect(url_for("index", tab="vehicles"))
 
+        # Türkçe karakter için fontları kaydet
+        register_pdf_fonts()
+
         buffer = io.BytesIO()
         cpdf = canvas.Canvas(buffer, pagesize=A4)
         width, height = A4
 
         y = height - 40
-        cpdf.setFont("Helvetica-Bold", 14)
+        cpdf.setFont("DejaVu-Bold", 14)
         cpdf.drawString(40, y, f"Araç Öğrenci Listesi - {vh[1]}")
         y -= 25
 
-        cpdf.setFont("Helvetica", 10)
+        cpdf.setFont("DejaVu", 10)
         cpdf.drawString(40, y, f"Plaka   : {vh[1]}")
         y -= 14
         cpdf.drawString(40, y, f"Şoför   : {vh[2] or ''}")
@@ -973,10 +1063,10 @@ def vehicle_report(vehicle_id, report_format):
         cpdf.drawString(40, y, f"Güzergah: {vh[4] or ''}")
         y -= 24
 
-        cpdf.setFont("Helvetica-Bold", 11)
+        cpdf.setFont("DejaVu-Bold", 11)
         cpdf.drawString(40, y, "Öğrenci Listesi")
         y -= 18
-        cpdf.setFont("Helvetica", 9)
+        cpdf.setFont("DejaVu", 9)
 
         for r in students_rows:
             line = f"{r[0]} | {r[1] or ''} | {r[2] or ''} | {r[3] or ''} | { (r[4] or 0):.2f} TL"
@@ -985,10 +1075,10 @@ def vehicle_report(vehicle_id, report_format):
             if y < 60:
                 cpdf.showPage()
                 y = height - 40
-                cpdf.setFont("Helvetica", 9)
+                cpdf.setFont("DejaVu", 9)
 
         y -= 16
-        cpdf.setFont("Helvetica-Bold", 10)
+        cpdf.setFont("DejaVu-Bold", 10)
         cpdf.drawString(40, y, f"Toplam Öğrenci : {len(students_rows)}")
         y -= 14
         cpdf.drawString(40, y, f"Toplam Aylık Ücret : {total_fee:.2f} TL")
@@ -1081,5 +1171,5 @@ def profit():
 
 # ----------------- MAIN -----------------
 if __name__ == "__main__":
-    create_tables()
+   
     app.run(debug=True)  # Sadece kendi bilgisayarında çalıştırırken

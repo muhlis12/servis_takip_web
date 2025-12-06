@@ -1,40 +1,36 @@
 {% extends "base.html" %}
+
 {% block content %}
-
 <div class="row mb-3">
-  <!-- Özet kartları -->
-  <div class="col-md-3 col-sm-6 mb-3">
-    <div class="card border-0 shadow-sm">
+  <div class="col-md-4 mb-2">
+    <div class="card">
       <div class="card-body">
-        <h6 class="card-title text-primary">Öğrenci</h6>
-        <div class="fs-4">{{ summary.student_count }}</div>
+        <div class="text-muted small">Öğrenci</div>
+        <div class="h4 mb-0">{{ summary.student_count }}</div>
       </div>
     </div>
   </div>
-
-  <div class="col-md-3 col-sm-6 mb-3">
-    <div class="card border-0 shadow-sm">
+  <div class="col-md-4 mb-2">
+    <div class="card">
       <div class="card-body">
-        <h6 class="card-title text-success">Araç</h6>
-        <div class="fs-4">{{ summary.vehicle_count }}</div>
+        <div class="text-muted small">Araç</div>
+        <div class="h4 mb-0">{{ summary.vehicle_count }}</div>
       </div>
     </div>
   </div>
-
-  <div class="col-md-3 col-sm-6 mb-3">
-    <div class="card border-0 shadow-sm">
+  <div class="col-md-4 mb-2">
+    <div class="card">
       <div class="card-body">
-        <h6 class="card-title text-info">Toplam Gelir</h6>
-        <div class="fs-4">{{ "%.2f"|format(summary.total_income) }} TL</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-3 col-sm-6 mb-3">
-    <div class="card border-0 shadow-sm">
-      <div class="card-body">
-        <h6 class="card-title text-danger">Kâr / Zarar</h6>
-        <div class="fs-4">{{ "%.2f"|format(summary.profit) }} TL</div>
+        <div class="text-muted small">Toplam Gelir</div>
+        <div class="h5 mb-0">{{ "%.2f"|format(summary.total_income) }} TL</div>
+        <div class="small mt-1">
+          Kâr / Zarar:
+          {% if summary.profit >= 0 %}
+            <span class="text-success fw-semibold">{{ "%.2f"|format(summary.profit) }} TL</span>
+          {% else %}
+            <span class="text-danger fw-semibold">{{ "%.2f"|format(summary.profit) }} TL</span>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>
@@ -42,159 +38,233 @@
 
 <div class="row">
   <!-- Sol menü -->
-  <div class="col-md-2 mb-3">
-    <div class="list-group" id="sidebarTabs" role="tablist">
-      <a class="list-group-item list-group-item-action {% if active_tab=='students' %}active{% endif %}"
-         data-bs-toggle="list" href="#students" role="tab">
+  <div class="col-md-3 col-lg-2 mb-3">
+    <div class="list-group">
+      <a href="{{ url_for('index', tab='students') }}"
+         class="list-group-item list-group-item-action {% if active_tab == 'students' %}active{% endif %}">
         Öğrenciler
       </a>
-      <a class="list-group-item list-group-item-action {% if active_tab=='schools' %}active{% endif %}"
-         data-bs-toggle="list" href="#schools" role="tab">
+      <a href="{{ url_for('index', tab='schools') }}"
+         class="list-group-item list-group-item-action {% if active_tab == 'schools' %}active{% endif %}">
         Okullar
       </a>
-      <a class="list-group-item list-group-item-action {% if active_tab=='payments' %}active{% endif %}"
-         data-bs-toggle="list" href="#payments" role="tab">
+      <a href="{{ url_for('index', tab='payments') }}"
+         class="list-group-item list-group-item-action {% if active_tab == 'payments' %}active{% endif %}">
         Ödemeler
       </a>
-      <a class="list-group-item list-group-item-action {% if active_tab=='expenses' %}active{% endif %}"
-         data-bs-toggle="list" href="#expenses" role="tab">
+      <a href="{{ url_for('index', tab='expenses') }}"
+         class="list-group-item list-group-item-action {% if active_tab == 'expenses' %}active{% endif %}">
         Giderler
       </a>
-      <a class="list-group-item list-group-item-action {% if active_tab=='vehicles' %}active{% endif %}"
-         data-bs-toggle="list" href="#vehicles" role="tab">
+      <a href="{{ url_for('index', tab='vehicles') }}"
+         class="list-group-item list-group-item-action {% if active_tab == 'vehicles' %}active{% endif %}">
         Araç / Hat
+      </a>
+      <a href="{{ url_for('index', tab='dues') }}"
+         class="list-group-item list-group-item-action {% if active_tab == 'dues' %}active{% endif %}">
+        Aidat Gecikmeleri
       </a>
     </div>
   </div>
 
   <!-- Sağ içerik -->
-  <div class="col-md-10">
-    <div class="tab-content">
+  <div class="col-md-9 col-lg-10">
 
-      <!-- ÖĞRENCİLER TAB -->
-      <div class="tab-pane fade {% if active_tab=='students' %}show active{% endif %}" id="students" role="tabpanel">
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <h5>Öğrenci Listesi</h5>
-          </div>
-          <div class="col-md-6 text-end">
-            <input type="text"
-                   class="form-control form-control-sm d-inline-block table-search-input"
-                   placeholder="Öğrenci / veli / okul ara..."
-                   onkeyup="filterTable('tableStudents', this.value)">
-          </div>
+    {# ------------------ ÖĞRENCİLER ------------------ #}
+    {% if active_tab == 'students' %}
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Öğrenci Listesi</span>
+          <input type="text"
+                 class="form-control form-control-sm w-auto"
+                 placeholder="Öğrenci / veli / okul ara..."
+                 onkeyup="filterTable('studentsTable', this.value)">
         </div>
-
-        <div class="table-responsive">
-          <table class="table table-sm table-striped align-middle" id="tableStudents">
-            <thead class="table-light">
-              <tr>
-                <th>ID</th>
-                <th>Öğrenci</th>
-                <th>Okul</th>
-                <th>Veli</th>
-                <th>Telefon</th>
-                <th>Aylık Ücret</th>
-                <th>Başlangıç Yılı</th>
-                <th>Başlangıç Ayı</th>
-                <th>Durum</th>
-                <th>İşlem</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" id="studentsTable">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Öğrenci</th>
+                  <th>Okul</th>
+                  <th>Veli</th>
+                  <th>Telefon</th>
+                  <th>Aylık Ücret (TL)</th>
+                  <th>9 Aylık Toplam (TL)</th>
+                  <th>Başlangıç Yılı</th>
+                  <th>Başlangıç Ayı</th>
+                  <th>Durum</th>
+                  <th>İşlem</th>
+                </tr>
+              </thead>
+              <tbody>
               {% for s in students %}
-              <tr>
-                <td>{{ s[0] }}</td>
-                <td>{{ s[1] }}</td>
-                <td>{{ s[2] }}</td>
-                <td>{{ s[3] }}</td>
-                <td>{{ s[4] }}</td>
-                <td>{{ "%.2f"|format(s[5]) }}</td>
-                <td>{{ s[6] }}</td>
-                <td>{{ s[7] }}</td>
-                <td>
-                  {% if s[8] == 1 %}
-                    <span class="badge bg-success">Aktif</span>
-                  {% else %}
-                    <span class="badge bg-secondary">Pasif</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if s[8] == 1 %}
-                  <form method="post"
-                        action="{{ url_for('delete_student', student_id=s[0]) }}"
-                        onsubmit="return confirm('Bu öğrenciyi pasife almak istediğinize emin misiniz?');">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                      Pasife Al
+                {# s: id, name, school, parent_name, phone, monthly_fee, start_year, start_month, is_active #}
+                {% set yearly_total = (s[5] or 0) * 9 %}
+                <tr>
+                  <td>{{ s[0] }}</td>
+                  <td>{{ s[1] }}</td>
+                  <td>{{ s[2] }}</td>
+                  <td>{{ s[3] }}</td>
+                  <td>{{ s[4] }}</td>
+                  <td>{{ "%.2f"|format(s[5] or 0) }}</td>
+                  <td class="text-primary fw-semibold">{{ "%.2f"|format(yearly_total) }}</td>
+                  <td>{{ s[6] or "" }}</td>
+                  <td>{{ s[7] or "" }}</td>
+                  <td>
+                    {% if s[8] == 1 %}
+                      <span class="badge bg-success">Aktif</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Pasif</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <!-- Düzenle -->
+                    <button type="button"
+                            class="btn btn-sm btn-outline-primary mb-1"
+                            data-bs-toggle="modal"
+                            data-bs-target="#editStudentModal{{ s[0] }}">
+                      Düzenle
                     </button>
-                  </form>
-                  {% else %}
-                    <span class="text-muted">Pasif</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
 
-        <!-- Yeni öğrenci formu -->
-        <div class="row mt-4">
-          <div class="col-md-6">
-            <div class="card">
-              <div class="card-header">Yeni Öğrenci</div>
-              <div class="card-body">
-                <form method="post" action="{{ url_for('add_student') }}">
-                  <div class="mb-2">
-                    <label class="form-label">Ad Soyad</label>
-                    <input type="text" name="name" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Okul</label>
-                    <input type="text" name="school" class="form-control form-control-sm">
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Veli Adı</label>
-                    <input type="text" name="parent_name" class="form-control form-control-sm">
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Telefon</label>
-                    <input type="text" name="phone" class="form-control form-control-sm">
-                  </div>
-                  <div class="row">
-                    <div class="col-md-4 mb-2">
-                      <label class="form-label">Aylık Ücret (TL)</label>
-                      <input type="text" name="monthly_fee" class="form-control form-control-sm" required>
+                    <!-- Pasife al -->
+                    {% if s[8] == 1 %}
+                      <form action="{{ url_for('delete_student', student_id=s[0]) }}"
+                            method="post"
+                            style="display:inline;">
+                        <button type="submit"
+                                class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Öğrenciyi pasife almak istediğinize emin misiniz?');">
+                          Pasife Al
+                        </button>
+                      </form>
+                    {% endif %}
+                  </td>
+                </tr>
+
+                <!-- Düzenleme Modalı -->
+                <div class="modal fade" id="editStudentModal{{ s[0] }}" tabindex="-1" aria-hidden="true">
+                  <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                      <form action="{{ url_for('update_student', student_id=s[0]) }}" method="post">
+                        <div class="modal-header">
+                          <h5 class="modal-title">Öğrenci Düzenle - {{ s[1] }}</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                        </div>
+                        <div class="modal-body">
+                          <div class="row g-3">
+                            <div class="col-md-6">
+                              <label class="form-label">Ad Soyad</label>
+                              <input type="text" name="name" class="form-control" value="{{ s[1] }}" required>
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label">Okul</label>
+                              <input type="text" name="school" class="form-control" value="{{ s[2] }}">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label">Veli Adı</label>
+                              <input type="text" name="parent_name" class="form-control" value="{{ s[3] }}">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label">Telefon</label>
+                              <input type="text" name="phone" class="form-control" value="{{ s[4] }}">
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label">Aylık Ücret (TL)</label>
+                              <input type="text" name="monthly_fee" class="form-control"
+                                     value="{{ "%.2f"|format(s[5] or 0) }}" required>
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label">Yıllık Ücret (9 Ay)</label>
+                              {# İstersen boş bırak, backend gerekirse hesaplıyor #}
+                              <input type="text" name="annual_fee" class="form-control"
+                                     value="{{ "%.2f"|format(yearly_total) }}">
+                            </div>
+                            <div class="col-md-2">
+                              <label class="form-label">Başlangıç Yılı</label>
+                              <input type="text" name="start_year" class="form-control" value="{{ s[6] or '' }}">
+                            </div>
+                            <div class="col-md-2">
+                              <label class="form-label">Başlangıç Ayı</label>
+                              <input type="text" name="start_month" class="form-control" value="{{ s[7] or '' }}">
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label d-block">Durum</label>
+                              <select name="is_active" class="form-select">
+                                <option value="1" {% if s[8] == 1 %}selected{% endif %}>Aktif</option>
+                                <option value="0" {% if s[8] != 1 %}selected{% endif %}>Pasif</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+                          <button type="submit" class="btn btn-primary">Kaydet</button>
+                        </div>
+                      </form>
                     </div>
-                    <div class="col-md-4 mb-2">
-                      <label class="form-label">Başlangıç Yılı</label>
-                      <input type="number" name="start_year" class="form-control form-control-sm">
-                    </div>
-                    <div class="col-md-4 mb-2">
-                      <label class="form-label">Başlangıç Ayı</label>
-                      <input type="number" name="start_month" class="form-control form-control-sm" min="1" max="12">
-                    </div>
                   </div>
-                  <div class="mt-2 text-end">
-                    <button type="submit" class="btn btn-primary btn-sm">Kaydet</button>
-                  </div>
-                </form>
-              </div>
-            </div>
+                </div>
+              {% endfor %}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <!-- OKULLAR TAB -->
-      <div class="tab-pane fade {% if active_tab=='schools' %}show active{% endif %}" id="schools" role="tabpanel">
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <h5>Okul Bazlı Öğrenci Sayıları</h5>
-          </div>
+      <!-- Yeni öğrenci formu -->
+      <div class="card">
+        <div class="card-header">Yeni Öğrenci</div>
+        <div class="card-body">
+          <form action="{{ url_for('add_student') }}" method="post" class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Ad Soyad</label>
+              <input type="text" name="name" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Okul</label>
+              <input type="text" name="school" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Veli Adı</label>
+              <input type="text" name="parent_name" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Telefon</label>
+              <input type="text" name="phone" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Aylık Ücret (TL)</label>
+              <input type="text" name="monthly_fee" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Yıllık Ücret (9 Ay)</label>
+              <input type="text" name="annual_fee" class="form-control">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Başlangıç Yılı</label>
+              <input type="text" name="start_year" class="form-control">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Başlangıç Ayı</label>
+              <input type="text" name="start_month" class="form-control">
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-primary">Kaydet</button>
+            </div>
+          </form>
         </div>
+      </div>
 
-        <div class="table-responsive mb-3">
-          <table class="table table-sm table-striped align-middle">
+    {% endif %}
+
+    {# ------------------ OKULLAR ------------------ #}
+    {% if active_tab == 'schools' %}
+      <div class="card mb-4">
+        <div class="card-header">Okul Bazlı Öğrenci Sayıları</div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0">
             <thead class="table-light">
               <tr>
                 <th>Okul</th>
@@ -202,37 +272,39 @@
               </tr>
             </thead>
             <tbody>
-              {% for row in schools_stats %}
+            {% for row in schools_stats %}
               <tr>
-                <td>{{ row[0] or '-' }}</td>
+                <td>{{ row[0] or "(Okul Yok)" }}</td>
                 <td>{{ row[1] }}</td>
               </tr>
-              {% endfor %}
+            {% endfor %}
             </tbody>
           </table>
         </div>
+      </div>
 
-        <div class="table-responsive">
-          <h6>Detaylı Öğrenci Listesi</h6>
-          <table class="table table-sm table-striped align-middle">
+      <div class="card">
+        <div class="card-header">Detaylı Öğrenci Listesi</div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0">
             <thead class="table-light">
               <tr>
                 <th>Okul</th>
                 <th>Öğrenci</th>
                 <th>Veli</th>
                 <th>Telefon</th>
-                <th>Aylık Ücret</th>
-                <th>Aktif</th>
+                <th>Aylık Ücret (TL)</th>
+                <th>Durum</th>
               </tr>
             </thead>
             <tbody>
-              {% for s in school_students %}
+            {% for s in school_students %}
               <tr>
                 <td>{{ s[2] }}</td>
                 <td>{{ s[1] }}</td>
                 <td>{{ s[3] }}</td>
                 <td>{{ s[4] }}</td>
-                <td>{{ "%.2f"|format(s[5]) }}</td>
+                <td>{{ "%.2f"|format(s[5] or 0) }}</td>
                 <td>
                   {% if s[6] == 1 %}
                     <span class="badge bg-success">Aktif</span>
@@ -241,362 +313,421 @@
                   {% endif %}
                 </td>
               </tr>
-              {% endfor %}
+            {% endfor %}
             </tbody>
           </table>
         </div>
       </div>
+    {% endif %}
 
-      <!-- ÖDEMELER TAB -->
-      <div class="tab-pane fade {% if active_tab=='payments' %}show active{% endif %}" id="payments" role="tabpanel">
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <h5>Ödemeler</h5>
-          </div>
-          <div class="col-md-6 text-end">
-            <input type="text"
-                   class="form-control form-control-sm d-inline-block table-search-input"
-                   placeholder="Öğrenci / açıklama ara..."
-                   onkeyup="filterTable('tablePayments', this.value)">
-          </div>
+    {# ------------------ ÖDEMELER ------------------ #}
+    {% if active_tab == 'payments' %}
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Ödemeler</span>
+          <input type="text"
+                 class="form-control form-control-sm w-auto"
+                 placeholder="Öğrenci / açıklama ara..."
+                 onkeyup="filterTable('paymentsTable', this.value)">
         </div>
-
-        <div class="table-responsive mb-3">
-          <table class="table table-sm table-striped align-middle" id="tablePayments">
-            <thead class="table-light">
-              <tr>
-                <th>ID</th>
-                <th>Öğrenci</th>
-                <th>Tarih</th>
-                <th>Tutar</th>
-                <th>Açıklama</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" id="paymentsTable">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Öğrenci</th>
+                  <th>Tarih</th>
+                  <th>Tutar (TL)</th>
+                  <th>Açıklama</th>
+                </tr>
+              </thead>
+              <tbody>
               {% for p in payments %}
-              <tr>
-                <td>{{ p[0] }}</td>
-                <td>{{ p[1] }}</td>
-                <td>{{ p[2] }}</td>
-                <td>{{ "%.2f"|format(p[3]) }}</td>
-                <td>{{ p[4] }}</td>
-              </tr>
+                <tr>
+                  <td>{{ p[0] }}</td>
+                  <td>{{ p[1] }}</td>
+                  <td>{{ p[2] }}</td>
+                  <td>{{ "%.2f"|format(p[3]) }}</td>
+                  <td>{{ p[4] }}</td>
+                </tr>
               {% endfor %}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <div class="card">
-              <div class="card-header">Yeni Ödeme</div>
-              <div class="card-body">
-                <form method="post" action="{{ url_for('add_payment') }}">
-                  <div class="mb-2">
-                    <label class="form-label">Öğrenci</label>
-                    <select name="student_id" class="form-select form-select-sm" required>
-                      <option value="">Seçiniz...</option>
-                      {% for s in students_for_select %}
-                      <option value="{{ s[0] }}">{{ s[1] }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Tarih</label>
-                    <input type="date" name="pay_date" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Tutar (TL)</label>
-                    <input type="text" name="amount" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Açıklama</label>
-                    <input type="text" name="description" class="form-control form-control-sm">
-                  </div>
-                  <div class="text-end">
-                    <button type="submit" class="btn btn-primary btn-sm">Kaydet</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <div class="card">
-              <div class="card-header">Tarihe Göre Ödeme</div>
-              <div class="card-body">
-                <form method="post" action="{{ url_for('payments_by_date') }}">
-                  <div class="mb-2">
-                    <label class="form-label">Tarih</label>
-                    <input type="date" name="filter_date" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="text-end">
-                    <button type="submit" class="btn btn-outline-primary btn-sm">Sorgula</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <div class="card">
-              <div class="card-header">Günlük Rapor İndir (Excel / PDF)</div>
-              <div class="card-body">
-                <form method="post" action="{{ url_for('daily_report') }}">
-                  <div class="mb-2">
-                    <label class="form-label">Tarih</label>
-                    <input type="date" name="report_date"
-                           class="form-control form-control-sm"
-                           value="{{ date_summary.report_date if date_summary else '' }}"
-                           required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Format</label>
-                    <select name="report_format" class="form-select form-select-sm">
-                      <option value="excel">Excel (CSV)</option>
-                      <option value="pdf">PDF</option>
-                    </select>
-                  </div>
-                  <div class="text-end">
-                    <button type="submit" class="btn btn-outline-secondary btn-sm">Rapor İndir</button>
-                  </div>
-                  <small class="text-muted">
-                    Seçilen gün için ödemeler, giderler ve özet bilgiyi
-                    Excel (CSV) veya PDF olarak indirebilirsiniz.
-                  </small>
-                </form>
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <!-- GİDERLER TAB -->
-      <div class="tab-pane fade {% if active_tab=='expenses' %}show active{% endif %}" id="expenses" role="tabpanel">
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <h5>Giderler</h5>
-          </div>
-          <div class="col-md-6 text-end">
-            <input type="text"
-                   class="form-control form-control-sm d-inline-block table-search-input"
-                   placeholder="Kategori / açıklama ara..."
-                   onkeyup="filterTable('tableExpenses', this.value)">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header">Yeni Ödeme</div>
+            <div class="card-body">
+              <form action="{{ url_for('add_payment') }}" method="post" class="row g-2">
+                <div class="col-12">
+                  <label class="form-label">Öğrenci</label>
+                  <select name="student_id" class="form-select" required>
+                    <option value="">Seçiniz...</option>
+                    {% for s in students_for_select %}
+                      <option value="{{ s[0] }}">{{ s[1] }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Tarih</label>
+                  <input type="date" name="pay_date" class="form-control" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Tutar (TL)</label>
+                  <input type="text" name="amount" class="form-control" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Açıklama</label>
+                  <input type="text" name="description" class="form-control">
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
 
-        <div class="table-responsive mb-3">
-          <table class="table table-sm table-striped align-middle" id="tableExpenses">
-            <thead class="table-light">
-              <tr>
-                <th>ID</th>
-                <th>Tarih</th>
-                <th>Kategori</th>
-                <th>Tutar</th>
-                <th>Açıklama</th>
-                <th>Araç</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header">Tarihe Göre Ödeme</div>
+            <div class="card-body">
+              <form action="{{ url_for('payments_by_date') }}" method="post" class="row g-2">
+                <div class="col-12">
+                  <label class="form-label">Tarih</label>
+                  <input type="date" name="filter_date" class="form-control" required>
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-outline-primary">Sorgula</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header">Günlük Rapor indir (Excel / PDF)</div>
+            <div class="card-body">
+              <form action="{{ url_for('daily_report') }}" method="post" class="row g-2">
+                <div class="col-12">
+                  <label class="form-label">Tarih</label>
+                  <input type="date" name="report_date" class="form-control" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Format</label>
+                  <select name="report_format" class="form-select">
+                    <option value="excel">Excel (CSV)</option>
+                    <option value="pdf">PDF</option>
+                  </select>
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-outline-success">Rapor indir</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {# ------------------ GİDERLER ------------------ #}
+    {% if active_tab == 'expenses' %}
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Giderler</span>
+          <input type="text"
+                 class="form-control form-control-sm w-auto"
+                 placeholder="Kategori / açıklama / araç ara..."
+                 onkeyup="filterTable('expensesTable', this.value)">
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" id="expensesTable">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Tarih</th>
+                  <th>Kategori</th>
+                  <th>Tutar (TL)</th>
+                  <th>Açıklama</th>
+                  <th>Araç</th>
+                </tr>
+              </thead>
+              <tbody>
               {% for e in expenses %}
-              <tr>
-                <td>{{ e[0] }}</td>
-                <td>{{ e[1] }}</td>
-                <td>{{ e[2] }}</td>
-                <td>{{ "%.2f"|format(e[3]) }}</td>
-                <td>{{ e[4] }}</td>
-                <td>
-                  {% if e[5] %}
-                    {{ e[5] }} - {{ e[6] or '' }}
-                  {% else %}
-                    -
-                  {% endif %}
-                </td>
-              </tr>
+                <tr>
+                  <td>{{ e[0] }}</td>
+                  <td>{{ e[1] }}</td>
+                  <td>{{ e[2] }}</td>
+                  <td>{{ "%.2f"|format(e[3]) }}</td>
+                  <td>{{ e[4] }}</td>
+                  <td>
+                    {% if e[5] %}
+                      {{ e[5] }} {% if e[6] %} - {{ e[6] }}{% endif %}
+                    {% else %}
+                      Genel Gider
+                    {% endif %}
+                  </td>
+                </tr>
               {% endfor %}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <div class="card">
-              <div class="card-header">Yeni Gider</div>
-              <div class="card-body">
-                <form method="post" action="{{ url_for('add_expense') }}">
-                  <div class="mb-2">
-                    <label class="form-label">Araç (opsiyonel)</label>
-                    <select name="vehicle_id_exp" class="form-select form-select-sm">
-                      <option value="">Genel Gider</option>
-                      {% for v in vehicles %}
-                      <option value="{{ v[0] }}">{{ v[1] }} - {{ v[2] }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Tarih</label>
-                    <input type="date" name="exp_date" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Kategori</label>
-                    <input type="text" name="category" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Tutar (TL)</label>
-                    <input type="text" name="amount_exp" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Açıklama</label>
-                    <input type="text" name="description_exp" class="form-control form-control-sm">
-                  </div>
-                  <div class="text-end">
-                    <button type="submit" class="btn btn-primary btn-sm">Kaydet</button>
-                  </div>
-                </form>
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
-
-          <div class="col-md-4 mb-3">
-            <div class="card">
-              <div class="card-header">Dönemsel Kâr/Zarar</div>
-              <div class="card-body">
-                <form method="post" action="{{ url_for('profit') }}">
-                  <div class="mb-2">
-                    <label class="form-label">Başlangıç</label>
-                    <input type="date" name="start_date_profit" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Bitiş</label>
-                    <input type="date" name="end_date_profit" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="text-end">
-                    <button type="submit" class="btn btn-outline-primary btn-sm">Hesapla</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-
         </div>
       </div>
 
-      <!-- ARAÇ / HAT TAB -->
-      <div class="tab-pane fade {% if active_tab=='vehicles' %}show active{% endif %}" id="vehicles" role="tabpanel">
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <h5>Araç / Hat Yönetimi</h5>
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header">Yeni Gider</div>
+            <div class="card-body">
+              <form action="{{ url_for('add_expense') }}" method="post" class="row g-2">
+                <div class="col-12">
+                  <label class="form-label">Araç (opsiyonel)</label>
+                  <select name="vehicle_id_exp" class="form-select">
+                    <option value="">Genel Gider</option>
+                    {% for v in vehicles %}
+                      <option value="{{ v[0] }}">{{ v[1] }}{% if v[2] %} - {{ v[2] }}{% endif %}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Tarih</label>
+                  <input type="date" name="exp_date" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Kategori</label>
+                  <input type="text" name="category" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Tutar (TL)</label>
+                  <input type="text" name="amount_exp" class="form-control" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Açıklama</label>
+                  <input type="text" name="description_exp" class="form-control">
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
 
-        <div class="table-responsive mb-3">
-          <table class="table table-sm table-striped align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>ID</th>
-                <th>Plaka</th>
-                <th>Şoför</th>
-                <th>Kapasite</th>
-                <th>Güzergah</th>
-                <th>Aktif</th>
-                <th>Rapor</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header">Dönemsel Kâr/Zarar</div>
+            <div class="card-body">
+              <form action="{{ url_for('profit') }}" method="post" class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label">Başlangıç</label>
+                  <input type="date" name="start_date_profit" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Bitiş</label>
+                  <input type="date" name="end_date_profit" class="form-control" required>
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-outline-primary">Hesapla</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {# ------------------ ARAÇ / HAT ------------------ #}
+    {% if active_tab == 'vehicles' %}
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Araç / Hat Yönetimi</span>
+          <input type="text"
+                 class="form-control form-control-sm w-auto"
+                 placeholder="Plaka / şoför / güzergah ara..."
+                 onkeyup="filterTable('vehiclesTable', this.value)">
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" id="vehiclesTable">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Plaka</th>
+                  <th>Şoför</th>
+                  <th>Kapasite</th>
+                  <th>Güzergah</th>
+                  <th>Aktif</th>
+                  <th>Rapor</th>
+                </tr>
+              </thead>
+              <tbody>
               {% for v in vehicles %}
-              <tr>
-                <td>{{ v[0] }}</td>
-                <td>{{ v[1] }}</td>
-                <td>{{ v[2] }}</td>
-                <td>{{ v[3] }}</td>
-                <td>{{ v[4] }}</td>
-                <td>
-                  {% if v[5] == 1 %}
-                    <span class="badge bg-success">Aktif</span>
-                  {% else %}
-                    <span class="badge bg-secondary">Pasif</span>
-                  {% endif %}
-                </td>
-                <td>
-                  <div class="btn-group btn-group-sm" role="group">
+                <tr>
+                  <td>{{ v[0] }}</td>
+                  <td>{{ v[1] }}</td>
+                  <td>{{ v[2] }}</td>
+                  <td>{{ v[3] or "" }}</td>
+                  <td>{{ v[4] }}</td>
+                  <td>
+                    {% if v[5] == 1 %}
+                      <span class="badge bg-success">Aktif</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Pasif</span>
+                    {% endif %}
+                  </td>
+                  <td>
                     <a href="{{ url_for('vehicle_report', vehicle_id=v[0], report_format='excel') }}"
-                       class="btn btn-outline-primary">Excel</a>
+                       class="btn btn-sm btn-outline-success mb-1">Excel</a>
                     <a href="{{ url_for('vehicle_report', vehicle_id=v[0], report_format='pdf') }}"
-                       class="btn btn-outline-secondary">PDF</a>
-                  </div>
-                </td>
-              </tr>
+                       class="btn btn-sm btn-outline-secondary mb-1">PDF</a>
+                  </td>
+                </tr>
               {% endfor %}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <div class="card">
-              <div class="card-header">Yeni Araç</div>
-              <div class="card-body">
-                <form method="post" action="{{ url_for('add_vehicle') }}">
-                  <div class="mb-2">
-                    <label class="form-label">Plaka</label>
-                    <input type="text" name="plate" class="form-control form-control-sm" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Şoför Adı</label>
-                    <input type="text" name="driver_name" class="form-control form-control-sm">
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Kapasite</label>
-                    <input type="number" name="capacity" class="form-control form-control-sm">
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Güzergah</label>
-                    <input type="text" name="route" class="form-control form-control-sm">
-                  </div>
-                  <div class="text-end">
-                    <button type="submit" class="btn btn-primary btn-sm">Kaydet</button>
-                  </div>
-                </form>
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
-
-          <div class="col-md-6 mb-3">
-            <div class="card">
-              <div class="card-header">Öğrenciyi Araca Ata</div>
-              <div class="card-body">
-                <form method="post" action="{{ url_for('assign_vehicle') }}">
-                  <div class="mb-2">
-                    <label class="form-label">Öğrenci</label>
-                    <select name="student_id_assign" class="form-select form-select-sm" required>
-                      <option value="">Seçiniz...</option>
-                      {% for s in students_for_select %}
-                      <option value="{{ s[0] }}">{{ s[1] }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Araç</label>
-                    <select name="vehicle_id_assign" class="form-select form-select-sm" required>
-                      <option value="">Seçiniz...</option>
-                      {% for v in vehicles %}
-                      <option value="{{ v[0] }}">{{ v[1] }} - {{ v[2] }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="text-end">
-                    <button type="submit" class="btn btn-primary btn-sm">Ata</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-
         </div>
       </div>
 
-    </div>
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header">Yeni Araç</div>
+            <div class="card-body">
+              <form action="{{ url_for('add_vehicle') }}" method="post" class="row g-2">
+                <div class="col-md-4">
+                  <label class="form-label">Plaka</label>
+                  <input type="text" name="plate" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Şoför Adı</label>
+                  <input type="text" name="driver_name" class="form-control">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Kapasite</label>
+                  <input type="text" name="capacity" class="form-control">
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Güzergah</label>
+                  <input type="text" name="route" class="form-control">
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header">Öğrenciyi Araca Ata</div>
+            <div class="card-body">
+              <form action="{{ url_for('assign_vehicle') }}" method="post" class="row g-2">
+                <div class="col-12">
+                  <label class="form-label">Öğrenci</label>
+                  <select name="student_id_assign" class="form-select" required>
+                    <option value="">Seçiniz...</option>
+                    {% for s in students_for_select %}
+                      <option value="{{ s[0] }}">{{ s[1] }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Araç</label>
+                  <select name="vehicle_id_assign" class="form-select" required>
+                    <option value="">Seçiniz...</option>
+                    {% for v in vehicles %}
+                      <option value="{{ v[0] }}">{{ v[1] }}{% if v[2] %} - {{ v[2] }}{% endif %}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-outline-primary">Ata</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {# ------------------ AİDAT GECİKME LİSTESİ ------------------ #}
+    {% if active_tab == 'dues' %}
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Aidat Gecikme Listesi (9 Aylık Sistem)</span>
+          <input type="text"
+                 class="form-control form-control-sm w-auto"
+                 placeholder="Öğrenci / okul / veli ara..."
+                 onkeyup="filterTable('duesTable', this.value)">
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" id="duesTable">
+              <thead class="table-light">
+                <tr>
+                  <th>Öğrenci</th>
+                  <th>Okul</th>
+                  <th>Veli</th>
+                  <th>Telefon</th>
+                  <th>Aylık Ücret (TL)</th>
+                  <th>Başlangıç (Yıl/Ay)</th>
+                  <th>Bugüne Kadar Ödenmesi Gereken (TL)</th>
+                  <th>Ödenen Toplam (TL)</th>
+                  <th>Geciken Tutar (TL)</th>
+                  <th>Kalan Yıllık (9 Ay) Tutar (TL)</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for d in overdue_dues %}
+                <tr>
+                  <td>{{ d.student_name }}</td>
+                  <td>{{ d.school }}</td>
+                  <td>{{ d.parent_name }}</td>
+                  <td>{{ d.phone }}</td>
+                  <td>{{ "%.2f"|format(d.monthly_fee) }}</td>
+                  <td>{{ d.start_year }}/{{ d.start_month }}</td>
+                  <td>{{ "%.2f"|format(d.expected_so_far) }}</td>
+                  <td>{{ "%.2f"|format(d.total_paid) }}</td>
+                  <td class="text-danger fw-semibold">{{ "%.2f"|format(d.overdue_amount) }}</td>
+                  <td>{{ "%.2f"|format(d.remaining_year) }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="10" class="text-center py-3 text-muted">
+                    Şu anda gecikmiş aidatı olan öğrenci bulunmuyor.
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
   </div>
 </div>
 
+<script>
+  function filterTable(tableId, query) {
+    query = (query || '').toLowerCase();
+    const table = document.getElementById(tableId);
+    if (!table || !table.tBodies.length) return;
+    const rows = Array.from(table.tBodies[0].rows);
+    for (const row of rows) {
+      const text = row.innerText.toLowerCase();
+      row.style.display = (!query || text.indexOf(query) !== -1) ? '' : 'none';
+    }
+  }
+</script>
 {% endblock %}
