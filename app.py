@@ -151,8 +151,6 @@ def create_tables():
                 "INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)",
                 (uname, generate_password_hash(pwd, method="pbkdf2:sha256", salt_length=16), fname, role),
             )
-        conn.commit()
-        conn.close()
 
     # ÖĞRENCİ–ARAÇ
     c.execute("""
@@ -169,6 +167,9 @@ def create_tables():
 
     conn.commit()
     conn.close()
+    
+register_pdf_fonts()
+create_tables()
 
 
 # ----------------- GÜNLÜK YEDEK -----------------
@@ -275,6 +276,8 @@ def logout():
     session.clear()
     flash("Oturum kapatıldı.", "info")
     return redirect(url_for("login"))
+
+
 @app.route("/change_password", methods=["GET", "POST"])
 @login_required
 def change_password():
@@ -325,6 +328,7 @@ def change_password():
         return redirect(url_for("index"))
 
     return render_template("change_password.html")
+
 
 # --- ANA SAYFA ---
 @app.route("/")
@@ -437,7 +441,6 @@ def index():
         if monthly_fee <= 0:
             continue
         if not start_year or not start_month:
-            # Başlangıç tarihi yoksa gecikme hesabını atlıyoruz
             continue
 
         # Kaç ay geçmiş? (maks 9 ay - okul dönemi)
@@ -457,7 +460,7 @@ def index():
         overdue_amount = max(expected_so_far - total_paid, 0.0)
         remaining_year = max(annual_total - total_paid, 0.0)
 
-        if overdue_amount > 1:  # 1 TL'den küçükleri sayma
+        if overdue_amount > 1:
             overdue_dues.append({
                 "student_id": sid,
                 "student_name": name,
@@ -478,7 +481,6 @@ def index():
     total_income = sum(p[3] for p in payments_rows) if payments_rows else 0.0
     total_expense = sum(e[3] for e in expenses_rows) if expenses_rows else 0.0
 
-    # aktif öğrenci sayısı (is_active = 1)
     active_student_count = len([s for s in students_rows if s[8] == 1])
 
     summary = {
@@ -503,7 +505,6 @@ def index():
         overdue_dues=overdue_dues,
         active_tab=active_tab
     )
-
 
 # ----------------- ÖĞRENCİ İŞLEMLERİ -----------------
 @app.route("/add_student", methods=["POST"])
@@ -1172,5 +1173,7 @@ def profit():
 
 # ----------------- MAIN -----------------
 if __name__ == "__main__":
-   
-    app.run(debug=True)  # Sadece kendi bilgisayarında çalıştırırken
+    # Lokal çalıştırırken de tablo + fontları garanti et
+    register_pdf_fonts()
+    create_tables()
+    app.run(debug=True)
