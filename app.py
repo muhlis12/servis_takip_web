@@ -19,7 +19,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "yerelde-cok-gizli-olmayan-bir-sey")
 
 
-create_tables()
+# create_tables()
 # ----------------- DB BAĞLANTI -----------------
 def get_conn():
     return sqlite3.connect(DB_NAME)
@@ -113,7 +113,7 @@ def create_tables():
         for uname, pwd, fname, role in default_users:
             c.execute(
                 "INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)",
-                (uname, generate_password_hash(pwd), fname, role),
+                (uname, generate_password_hash(pwd, method="pbkdf2:sha256", salt_length=16), fname, role),
             )
         conn.commit()
 
@@ -1080,5 +1080,5 @@ def profit():
 
 # ----------------- MAIN -----------------
 if __name__ == "__main__":
-    
+    create_tables()
     app.run(debug=True)  # Sadece kendi bilgisayarında çalıştırırken
